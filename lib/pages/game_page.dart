@@ -10,6 +10,8 @@ import '../game/achievements/achievement.dart';
 import '../game/battle/battle_controller.dart';
 import '../game/battle/battle_keys.dart';
 import '../game/battle/battle_types.dart';
+import '../game/battle/battle_tuning.dart';
+import '../game/battle/double_tap.dart';
 import '../game/battle/battle_viewport.dart';
 import '../game/challenge/daily_challenge.dart';
 import '../providers/settings_provider.dart';
@@ -205,13 +207,41 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
     _controller?.useBomb();
   }
 
+  final _doubleTap = DoubleTapDetector();
+  int? _pointer;
+  Duration _downAt = Duration.zero;
+  Offset _downPos = Offset.zero;
+  double _tapTravel = 0;
   void _onPointerDown(PointerDownEvent event) {
+    if (_pointer != null) return;
+    _pointer = event.pointer;
+    _downAt = event.timeStamp;
+    _downPos = event.localPosition;
+    _tapTravel = 0;
     _dragLast = event.localPosition;
   }
 
+  void _onPointerUp(PointerUpEvent event) {
+    if (_pointer != event.pointer) return;
+    if (_doubleTap.onUp(
+      downAt: _downAt,
+      upAt: event.timeStamp,
+      downPos: _downPos,
+      upPos: _tapTravel >= kTapMaxTravel
+          ? _downPos + Offset(_tapTravel, 0)
+          : event.localPosition,
+    )) {
+      _controller?.useResonance();
+    }
+    _pointer = null;
+    _dragLast = null;
+  }
+
   void _onPointerMove(PointerMoveEvent event) {
+    if (_pointer != event.pointer) return;
     final last = _dragLast;
     if (last == null || _field.width <= 0) return;
+    _tapTravel += (event.localPosition - last).distance;
     final scale = kWorldWidth / _field.width;
     _controller?.movePlayerBy((event.localPosition - last) * scale);
     _dragLast = event.localPosition;
@@ -225,9 +255,12 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
       _pressed.remove(key);
     }
     _controller?.setMoveAxis(moveAxisForKeys(_pressed));
+    _controller?.setFocusHeld(_pressed.any(isFocusKey));
 
     if (event is KeyDownEvent) {
-      if (isBombKey(key)) {
+      if (isResonanceKey(key)) {
+        _controller?.useResonance();
+      } else if (isBombKey(key)) {
         _useBomb();
       } else if (isPauseKey(key)) {
         _togglePause();
@@ -261,6 +294,7 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
               // 切换窗口或弹窗夺焦时清空按键，避免战机持续漂移。
               _pressed.clear();
               _controller?.setMoveAxis(Offset.zero);
+              _controller?.setFocusHeld(false);
             },
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -274,8 +308,13 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
                   behavior: HitTestBehavior.opaque,
                   onPointerDown: _onPointerDown,
                   onPointerMove: _onPointerMove,
-                  onPointerUp: (_) => _dragLast = null,
-                  onPointerCancel: (_) => _dragLast = null,
+                  onPointerUp: _onPointerUp,
+                  onPointerCancel: (event) {
+                    if (_pointer == event.pointer) {
+                      _pointer = null;
+                      _dragLast = null;
+                    }
+                  },
                   child: GameWidget(key: ValueKey(game), game: game),
                 );
 

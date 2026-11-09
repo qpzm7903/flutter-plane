@@ -14,6 +14,9 @@ final Set<LogicalKeyboardKey> kBattleHandledKeys = {
   LogicalKeyboardKey.keyA,
   LogicalKeyboardKey.keyS,
   LogicalKeyboardKey.keyD,
+  LogicalKeyboardKey.shiftLeft,
+  LogicalKeyboardKey.shiftRight,
+  LogicalKeyboardKey.keyR,
   LogicalKeyboardKey.space,
   LogicalKeyboardKey.keyB,
   LogicalKeyboardKey.keyP,
@@ -47,3 +50,7 @@ bool isBombKey(LogicalKeyboardKey key) =>
 /// 暂停 / 继续。
 bool isPauseKey(LogicalKeyboardKey key) =>
     key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.keyP;
+
+bool isFocusKey(LogicalKeyboardKey key) =>
+    key == LogicalKeyboardKey.shiftLeft || key == LogicalKeyboardKey.shiftRight;
+bool isResonanceKey(LogicalKeyboardKey key) => key == LogicalKeyboardKey.keyR;

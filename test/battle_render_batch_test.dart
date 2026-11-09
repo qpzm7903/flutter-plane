@@ -20,6 +20,18 @@ class CountingCanvas implements Canvas {
   int rawPointCount = 0;
   int linePointCount = 0;
   int circleCalls = 0;
+  int arcCalls = 0;
+  @override
+  void drawArc(
+    Rect rect,
+    double startAngle,
+    double sweepAngle,
+    bool useCenter,
+    Paint paint,
+  ) {
+    arcCalls++;
+  }
+
   int pictureCalls = 0;
   int rectCalls = 0;
   int saveCalls = 0;
@@ -175,13 +187,55 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('全部十五种弹种同屏保持批绘制预算', (tester) async {
+  testWidgets('凝神满蓄与十六弹种一百五十敌弹三僚机保持预算', (tester) async {
+    final c = _controllerWithBullets();
+    addTearDown(c.dispose);
+    c.enemies.clear();
+    c.playerBullets.clear();
+    for (var kind = 0; kind < 16; kind++) {
+      c.playerBullets.add(
+        Bullet(
+          x: 80 + kind * 10,
+          y: 250,
+          vx: 0,
+          vy: -560,
+          radius: 4,
+          damage: 1,
+          fromPlayer: true,
+          kind: kind,
+        ),
+      );
+    }
+    for (final side in [-1, 1, 0]) {
+      c.wingmen.add(Wingman(side: side, x: 200 + side * 27, y: 600));
+    }
+    final component = BattleFieldComponent(
+      controller: c,
+      logicRate: LogicRate.hz120,
+    )..size = Vector2(400, 700);
+    addTearDown(component.onRemove);
+    final before = CountingCanvas();
+    component.render(before);
+    c.player
+      ..focus = 1
+      ..charge = 1;
+    final after = CountingCanvas();
+    component.render(after);
+    expect(after.circleCalls - before.circleCalls, 2);
+    expect(after.arcCalls - before.arcCalls, 1);
+    expect(after.rawPointsCalls, 43);
+    expect(after.circleCalls, 6);
+    expect(after.rawPointCount, greaterThan(before.rawPointCount));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('全部十六种弹种同屏保持批绘制预算', (tester) async {
     final c = _controllerWithBullets();
     addTearDown(c.dispose);
     c.playerBullets.clear();
     c.enemyBullets.clear();
     c.enemies.clear();
-    for (var kind = 0; kind < 15; kind++) {
+    for (var kind = 0; kind < 16; kind++) {
       for (var i = 0; i < 10; i++) {
         final b = Bullet(
           x: 50 + i * 20,
@@ -203,7 +257,7 @@ void main() {
     addTearDown(component.onRemove);
     final canvas = CountingCanvas();
     component.render(canvas);
-    expect(canvas.rawPointsCalls, lessThanOrEqualTo(42));
+    expect(canvas.rawPointsCalls, lessThanOrEqualTo(45));
     expect(canvas.circleCalls, 0);
     expect(tester.takeException(), isNull);
   });

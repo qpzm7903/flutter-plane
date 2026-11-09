@@ -122,7 +122,8 @@ class BattleFieldComponent extends PositionComponent {
   }
 
   static GameSound _soundOf(BattleEvent event) => switch (event) {
-    BattleEvent.shoot => GameSound.shoot,
+    BattleEvent.shoot || BattleEvent.lance => GameSound.shoot,
+    BattleEvent.resonance => GameSound.powerUp,
     BattleEvent.explosion => GameSound.explosion,
     BattleEvent.bigExplosion => GameSound.bigExplosion,
     BattleEvent.powerUp => GameSound.powerUp,
@@ -351,6 +352,36 @@ class BattleFieldComponent extends PositionComponent {
     _fill.color = const Color(0xCC7FD8FF);
     canvas.drawRect(const Rect.fromLTWH(-9.5, 3.4, 19, 2.2), _fill);
 
+    final stanceColor = player.route == null
+        ? kPlayerTrim.toARGB32()
+        : kWeaponRoutes[player.route]!.argb;
+    if (player.focus > 0.05) {
+      _stroke
+        ..color = _fadeColor(stanceColor, player.focus)
+        ..strokeWidth = 1;
+      canvas.drawCircle(Offset.zero, player.hitRadius + 1.5, _stroke);
+      if (player.focus > 0.5) {
+        _stroke
+          ..color = _fadeColor(stanceColor, 0.18 * player.focus)
+          ..strokeWidth = 0.8;
+        canvas.drawCircle(Offset.zero, Player.radius + kGrazeBand, _stroke);
+      }
+    }
+    if (player.charge > 0.02) {
+      final pulse = player.charge >= 1
+          ? 0.7 + 0.3 * math.sin(controller.elapsed * math.pi * 16)
+          : 1.0;
+      _stroke
+        ..color = _fadeColor(stanceColor, pulse)
+        ..strokeWidth = 1.6;
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset.zero, radius: 19),
+        -math.pi / 2,
+        player.charge * math.pi * 2,
+        false,
+        _stroke,
+      );
+    }
     if (player.shield > 0) {
       final pulse = 0.55 + 0.25 * math.sin(controller.elapsed * 9);
       _stroke
@@ -481,7 +512,8 @@ class BattleFieldComponent extends PositionComponent {
           s.glowArgb,
           bullet.x - bullet.vx * k,
           bullet.y - bullet.vy * k,
-          s.glowRadius / (i + 1),
+          // 光矛三粒尾光共用半径桶，新增弹种最多增加三次批提交。
+          s.glowRadius / (bullet.kind == BulletKind.chargeLance ? 2 : i + 1),
           s.glowAlpha,
         );
       }
@@ -546,6 +578,19 @@ class BattleFieldComponent extends PositionComponent {
   // ------------------------------------------------------------ 粒子与飘字
 
   void _drawParticles(Canvas canvas, Size world) {
+    final p = controller.player;
+    if (p.alive &&
+        !(p.invuln > 0 && (controller.elapsed * 12).floor().isEven)) {
+      if (p.focus > 0.05) _dots.add(0xFFFFFFFF, p.x, p.y, 2.4, p.focus);
+      if (p.charge >= 1) {
+        final color = p.route == null
+            ? kPlayerTrim.toARGB32()
+            : kWeaponRoutes[p.route]!.argb;
+        final pulse = 0.7 + 0.3 * math.sin(controller.elapsed * math.pi * 16);
+        _dots.add(color, p.x - 19, p.y, 2, pulse);
+        _dots.add(color, p.x + 19, p.y, 2, pulse);
+      }
+    }
     for (final particle in controller.particles) {
       // 边缘爆炸的碎片会飞出战场，屏幕外的直接跳过，省掉批绘制写入。
       if (particle.x < -24 ||

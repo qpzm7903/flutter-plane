@@ -1,6 +1,6 @@
 import 'dart:ui';
 
-import 'battle_tuning.dart' show kStartBombs;
+import 'battle_tuning.dart' show kStartBombs, kFocusHitRadius;
 
 /// 战场逻辑宽度：所有尺寸、速度都按这一宽度设计，渲染时整体缩放。
 const double kWorldWidth = 400;
@@ -30,6 +30,8 @@ enum BattleEvent {
   waveStart,
   bossAppear,
   gameOver,
+  lance,
+  resonance,
 }
 
 /// 敌机类型。
@@ -64,6 +66,7 @@ enum EnemyFireMode { aimed, radial }
 class BulletKind {
   BulletKind._();
 
+  static const int chargeLance = 15;
   static const int player = 0;
   static const int aimed = 1;
   static const int spread = 2;
@@ -193,6 +196,10 @@ enum WeaponRoute { fan, pierce, focus }
 
 /// 玩家战机状态。
 class Player {
+  double focus = 0, moveSpeed = 0, slowTime = 0, charge = 0, resonance = 0;
+  bool focused = false;
+  double get hitRadius => radius + (kFocusHitRadius - radius) * focus;
+
   /// 过载为零时无路线；过载生效时基础火力恒为满级。
   WeaponRoute? route;
   int overdrive = 0;
@@ -318,6 +325,7 @@ class Bullet {
     required this.fromPlayer,
     this.kind = 0,
     this.pierce = 0,
+    this.cuts = false,
   });
 
   double x;
@@ -333,6 +341,8 @@ class Bullet {
 
   /// 剩余普通敌机穿透次数；最近两次命中引用避免跨帧重复结算。
   int pierce;
+  final bool cuts;
+  bool grazed = false;
   Enemy? lastHit;
   Enemy? prevHit;
   bool dead = false;

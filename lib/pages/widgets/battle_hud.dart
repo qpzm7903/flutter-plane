@@ -64,7 +64,18 @@ class BattleHud extends StatelessWidget {
     ),
     if (controller.combo >= 2)
       Positioned(right: 10, top: 62, child: _comboBadge()),
-    Positioned(left: 10, top: 76, child: _statusStrip()),
+    Positioned(
+      left: 10,
+      top: 76,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _statusStrip(),
+          const SizedBox(height: 6),
+          _resonanceMeter(),
+        ],
+      ),
+    ),
     Positioned(left: 10, bottom: 10, child: _wavePanel(compact: true)),
     Positioned(right: 12, bottom: 12, child: _bombButton()),
   ];
@@ -225,10 +236,33 @@ class BattleHud extends StatelessWidget {
             SizedBox(height: i == 0 ? 8 : 6),
             _statRow(stats[i]),
           ],
+          const SizedBox(height: 6),
+          _resonanceMeter(wide: true),
         ],
       ),
     );
   }
+
+  Widget _resonanceMeter({bool wide = false}) => IgnorePointer(
+    child: ValueListenableBuilder<int>(
+      valueListenable: controller.resonanceMeter,
+      builder: (context, value, child) {
+        final meter = resonanceMeterFor(value, controller.wave);
+        if (!meter.visible) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ResonanceBar(meter: meter),
+            if (wide)
+              Text(
+                '擦弹 ${controller.grazes}',
+                style: const TextStyle(fontSize: 11, color: _muted),
+              ),
+          ],
+        );
+      },
+    ),
+  );
 
   Widget _statRow(HudStat stat) => Row(
     children: [
@@ -524,4 +558,98 @@ class BattleHud extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ResonanceBar extends StatefulWidget {
+  const _ResonanceBar({required this.meter});
+  final HudMeter meter;
+  @override
+  State<_ResonanceBar> createState() => _ResonanceBarState();
+}
+
+class _ResonanceBarState extends State<_ResonanceBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(microseconds: 833333),
+  );
+  @override
+  void initState() {
+    super.initState();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ResonanceBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _sync();
+  }
+
+  void _sync() {
+    if (widget.meter.ready && !_pulse.isAnimating) {
+      _pulse.repeat();
+    } else if (!widget.meter.ready) {
+      _pulse.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _pulse,
+    builder: (context, child) => Semantics(
+      label: widget.meter.label,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            '共鸣',
+            style: TextStyle(fontSize: 11, color: Colors.white70),
+          ),
+          const SizedBox(width: 5),
+          Opacity(
+            opacity: widget.meter.ready
+                ? 0.75 + 0.25 * math.sin(_pulse.value * math.pi * 2)
+                : 1,
+            child: Container(
+              width: 88,
+              height: 6,
+              decoration: BoxDecoration(
+                color: const Color(0x33FFFFFF),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: widget.meter.ratio,
+                heightFactor: 1,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(3),
+                    gradient: LinearGradient(
+                      colors: widget.meter.ready
+                          ? [appAmber, const Color(0xFFFFE9A8)]
+                          : [appCyan, const Color(0xFF2EF2A8)],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (widget.meter.ready)
+            const Padding(
+              padding: EdgeInsets.only(left: 5),
+              child: Text(
+                '双击',
+                style: TextStyle(fontSize: 11, color: appAmber),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
 }

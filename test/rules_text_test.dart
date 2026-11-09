@@ -16,7 +16,8 @@ void main() {
     for (final spec in kWeaponRoutes.values) {
       expect(routeHints(), contains('${spec.label}：${spec.blurb}'));
     }
-    expect(routeHints().last, contains('护盾可保护过载'));
+    expect(routeHints().join(), contains('护盾可保护过载'));
+    expect(routeHints().last, contains('$kHitResonanceLoss'));
   });
 
   test('穿透与精英炸弹说明由规则推导', () {

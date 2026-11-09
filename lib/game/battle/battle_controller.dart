@@ -15,6 +15,8 @@ import 'enemy_weapons.dart';
 import 'pickup_rules.dart';
 import 'player_weapon.dart';
 import 'wave_director.dart';
+import 'stance_rules.dart';
+import 'rules_text.dart';
 
 /// 战斗控制器：纯逻辑的弹幕战场，负责玩家、敌机、弹道、碰撞、波次与计分。
 ///
@@ -71,6 +73,14 @@ class BattleController extends ChangeNotifier {
   final List<BattleEvent> _events = [];
   final List<SpawnRequest> _spawnScratch = [];
   final ValueNotifier<int> _bossHp = ValueNotifier<int>(0);
+  final _resonanceMeter = ValueNotifier<int>(0);
+  ValueListenable<int> get resonanceMeter => _resonanceMeter;
+  final _graze = GrazeLedger();
+  int grazes = 0;
+  double _moveAccum = 0;
+  bool _focusHeld = false;
+  int _hintedWave = 0;
+  void setFocusHeld(bool held) => _focusHeld = held;
   Offset _moveAxis = Offset.zero;
   Size _size;
   int _highScore;
@@ -162,6 +172,12 @@ class BattleController extends ChangeNotifier {
     _trailTimer = 0;
     _shootCooldown = 0;
     _drops.clearRun();
+    _graze.clearRun();
+    grazes = 0;
+    _moveAccum = 0;
+    _focusHeld = false;
+    _hintedWave = 0;
+    _resonanceMeter.value = 0;
     _moveAxis = Offset.zero;
     _bossHp.value = 0;
     _effects.resetStars(_size);
@@ -196,6 +212,7 @@ class BattleController extends ChangeNotifier {
   /// 指针拖动：按手指位移平移战机，越界自动收拢。
   void movePlayerBy(Offset delta) {
     if (phase != BattlePhase.playing || !player.alive) return;
+    _moveAccum += delta.distance;
     player.x += delta.dx;
     player.y += delta.dy;
     clampPlayerToArena(player, _size);
@@ -232,6 +249,58 @@ class BattleController extends ChangeNotifier {
     _effects.addPopup(
       ScorePopup(x: _size.width / 2, y: _size.height * 0.55, text: '全屏轰炸'),
     );
+    notifyListeners();
+  }
+
+  int _scaled(int value) =>
+      (value * multiplier * challengeModifier.scoreScale).round();
+
+  void useResonance() {
+    if (phase != BattlePhase.playing ||
+        !player.alive ||
+        !canResonate(player, wave)) {
+      return;
+    }
+    player.resonance = 0;
+    var converted = 0;
+    final center = Offset(player.x, player.y);
+    for (final bullet in enemyBullets) {
+      final dx = bullet.x - player.x, dy = bullet.y - player.y;
+      if (bullet.dead ||
+          dx * dx + dy * dy > kResonanceRadius * kResonanceRadius) {
+        continue;
+      }
+      bullet.dead = true;
+      if (converted < 12) {
+        _effects.absorbBurst(center, Offset(bullet.x, bullet.y));
+      }
+      converted++;
+    }
+    final gain =
+        math.min(converted, kResonanceMaxConvert) *
+        _scaled(kResonanceBulletScore);
+    score += gain;
+    player.invuln = math.max(player.invuln, kResonanceInvuln);
+    for (final wing in wingmen) {
+      if (wing.role != WingmanRole.guard) continue;
+      wing.energy = kGuardMaxEnergy;
+      wing.overheat = 0;
+    }
+    if (wave >= kChargeFromWave) player.charge = 1;
+    if (combo > 0) comboTimer = kComboWindow;
+    flash = math.max(flash, 0.2);
+    shake = math.max(shake, 10);
+    _emit(BattleEvent.resonance);
+    _effects.absorbRing(center);
+    _effects.addPopup(
+      ScorePopup(
+        x: player.x,
+        y: player.y - 32,
+        text: '共鸣 吞噬 ×$converted  +$gain',
+        color: 0xFF9BFFEA,
+      ),
+    );
+    _resonanceMeter.value = 0;
     notifyListeners();
   }
 
@@ -282,6 +351,9 @@ class BattleController extends ChangeNotifier {
     if (_hudTimer < kHudRefreshInterval) return;
     _hudTimer = 0;
     _syncBossHp();
+    _resonanceMeter.value = (player.resonance / kResonanceMax * 1000)
+        .round()
+        .clamp(0, 1000);
     // 开场提示需要连续淡出，其余时间只在 HUD 可见数值真的变化时才通知。
     // Boss 血条由独立的 bossHp 通知驱动，不再拖着整棵 HUD 按 10Hz 重建。
     final signature = _hudSignature();
@@ -302,6 +374,7 @@ class BattleController extends ChangeNotifier {
   @override
   void dispose() {
     _bossHp.dispose();
+    _resonanceMeter.dispose();
     super.dispose();
   }
 
@@ -326,18 +399,28 @@ class BattleController extends ChangeNotifier {
   void _updatePlayer(double dt) {
     final p = player;
     if (!p.alive) return;
+    _graze.refill(dt);
+    final keyScale = _focusHeld && wave >= kFocusFromWave
+        ? kFocusKeySpeedScale
+        : 1.0;
     p.invuln = math.max(0, p.invuln - dt);
     p.shield = math.max(0, p.shield - dt);
     p.rapid = math.max(0, p.rapid - dt);
     if (_moveAxis != Offset.zero) {
-      p.x += _moveAxis.dx * kPlayerSpeed * dt;
-      p.y += _moveAxis.dy * kPlayerSpeed * dt;
+      p.x += _moveAxis.dx * kPlayerSpeed * keyScale * dt;
+      p.y += _moveAxis.dy * kPlayerSpeed * keyScale * dt;
       clampPlayerToArena(p, _size);
       p.tilt += (_moveAxis.dx - p.tilt) * math.min(1, dt * 9);
     } else {
       p.tilt += (0 - p.tilt) * math.min(1, dt * 7);
     }
 
+    _moveAccum += _moveAxis.distance * kPlayerSpeed * keyScale * dt;
+    if (updateStance(p, dt, moved: _moveAccum, held: _focusHeld, wave: wave)) {
+      appendChargeLance(p, playerBullets);
+      _emit(BattleEvent.lance);
+    }
+    _moveAccum = 0;
     p.fireCooldown -= dt;
     if (p.fireCooldown <= 0) {
       p.fireCooldown = playerFireInterval(
@@ -363,7 +446,11 @@ class BattleController extends ChangeNotifier {
   /// 僚机追随玩家两侧，按固定间隔向正上方偏外开火。
   void _updateWingmen(double dt) {
     for (final wing in wingmen) {
-      final targetX = player.x + wing.side * kWingmanOffsetX;
+      final targetX =
+          player.x +
+          wing.side *
+              kWingmanOffsetX *
+              (1 - kFocusWingmanSqueeze * player.focus);
       final targetY = player.y + wingmanOffsetY(wing.role);
       final follow = math.min(1, dt * kWingmanFollowLerp);
       wing.x += (targetX - wing.x) * follow;
@@ -401,6 +488,18 @@ class BattleController extends ChangeNotifier {
     if (_gapTimer > 0) return;
     _director.startNextWave();
     wave = _director.wave;
+    final hint = systemHintForWave(wave);
+    if (hint != null && _hintedWave != wave) {
+      _hintedWave = wave;
+      _effects.addPopup(
+        ScorePopup(
+          x: _size.width / 2,
+          y: _size.height * 0.42,
+          text: hint,
+          color: 0xFF8BE9FD,
+        ),
+      );
+    }
     _gapTimer = kBetweenWaveGap;
     _effects.addPopup(
       ScorePopup(
@@ -507,8 +606,7 @@ class BattleController extends ChangeNotifier {
     maxCombo = math.max(maxCombo, combo);
     comboTimer = kComboWindow;
     if (enemy.isBoss) bossKills++;
-    final gain = (enemy.spec.score * multiplier * challengeModifier.scoreScale)
-        .round();
+    final gain = _scaled(enemy.spec.score);
     score += gain;
     final big = enemy.isBoss || enemy.kind == EnemyKind.elite;
     _effects.addPopup(
@@ -682,6 +780,21 @@ class BattleController extends ChangeNotifier {
       // 在循环里重复乘减。
       final fromX = bullet.x - bullet.vx * dt;
       final fromY = bullet.y - bullet.vy * dt;
+      if (bullet.cuts) {
+        for (final shot in enemyBullets) {
+          if (!shot.dead &&
+              _sweepHits(
+                bullet,
+                dt,
+                shot.x,
+                shot.y,
+                bullet.radius + shot.radius,
+              )) {
+            shot.dead = true;
+            _effects.grazeSpark(Offset(shot.x, shot.y), 0xFFB8E6FF);
+          }
+        }
+      }
       for (final enemy in enemies) {
         if (enemy.dead ||
             identical(enemy, bullet.lastHit) ||
@@ -701,7 +814,11 @@ class BattleController extends ChangeNotifier {
           continue;
         }
         _damageEnemy(enemy, bullet.damage);
-        _effects.spark(Offset(bullet.x, bullet.y), 0xFFB7F4FF);
+        if (bullet.kind == BulletKind.chargeLance) {
+          _effects.grazeSpark(Offset(bullet.x, bullet.y), 0xFFFFE9A8);
+        } else {
+          _effects.spark(Offset(bullet.x, bullet.y), 0xFFB7F4FF);
+        }
         if (bullet.pierce > 0 && !enemy.isBoss) {
           bullet.pierce--;
           bullet.prevHit = bullet.lastHit;
@@ -749,11 +866,31 @@ class BattleController extends ChangeNotifier {
     final py = player.y;
     for (final bullet in enemyBullets) {
       if (bullet.dead) continue;
-      final reach = Player.radius + bullet.radius;
-      if (!_sweepHits(bullet, dt, px, py, reach)) continue;
-      bullet.dead = true;
-      _hitPlayer();
-      break;
+      final reach = player.hitRadius + bullet.radius;
+      if (_sweepHits(bullet, dt, px, py, reach)) {
+        bullet.dead = true;
+        _hitPlayer();
+        break;
+      }
+      if (wave < kGrazeFromWave ||
+          player.invuln > 0 ||
+          !player.alive ||
+          bullet.grazed) {
+        continue;
+      }
+      final dx = bullet.x - px, dy = bullet.y - py;
+      final band = Player.radius + kGrazeBand + bullet.radius;
+      if (dx * dx + dy * dy > band * band) continue;
+      bullet.grazed = true;
+      final before = _graze.total;
+      _graze.credit(player, wave: wave);
+      if (_graze.total == before) continue;
+      grazes = _graze.total;
+      score += _scaled(kGrazeScore);
+      if (combo > 0) {
+        comboTimer = math.min(kComboWindow, comboTimer + kGrazeComboExtend);
+      }
+      _effects.grazeSpark(Offset(bullet.x, bullet.y), 0xFF9BFFEA);
     }
   }
 
@@ -768,7 +905,7 @@ class BattleController extends ChangeNotifier {
         enemy.radius,
         px,
         py,
-        Player.radius,
+        player.hitRadius,
       )) {
         _damageEnemy(enemy, enemy.isBoss ? kRamBossDamage : kRamDamage);
         _hitPlayer();

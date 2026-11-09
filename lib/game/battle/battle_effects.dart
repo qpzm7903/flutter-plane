@@ -169,6 +169,61 @@ class BattleEffects {
     }
   }
 
+  int _fx = 0;
+  void grazeSpark(Offset position, int color) {
+    for (var i = 0; i < 2; i++) {
+      final angle = _fx++ * 2.399963;
+      particles.add(
+        _acquire(
+          x: position.dx,
+          y: position.dy,
+          vx: math.cos(angle) * 65,
+          vy: math.sin(angle) * 65,
+          life: 0.22,
+          size: 1.8,
+          color: color,
+          kind: ParticleKind.spark,
+          drag: 2.2,
+        ),
+      );
+    }
+    _trim(maxParticles);
+  }
+
+  void absorbBurst(Offset center, Offset from) {
+    particles.add(
+      _acquire(
+        x: from.dx,
+        y: from.dy,
+        vx: (center.dx - from.dx) * 4,
+        vy: (center.dy - from.dy) * 4,
+        life: 0.25,
+        size: 2.2,
+        color: 0xFF9BFFEA,
+        kind: ParticleKind.spark,
+        drag: 0,
+      ),
+    );
+    _trim(maxParticles);
+  }
+
+  void absorbRing(Offset center) {
+    particles.add(
+      _acquire(
+        x: center.dx,
+        y: center.dy,
+        vx: 0,
+        vy: 0,
+        life: 0.5,
+        size: 34,
+        color: 0xFF9BFFEA,
+        kind: ParticleKind.ring,
+        drag: 0,
+      ),
+    );
+    _trim(maxParticles);
+  }
+
   void spark(Offset position, int color) {
     burst(position, count: 3, color: color, speed: 90, size: 1.8, life: 0.22);
   }

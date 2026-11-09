@@ -77,3 +77,25 @@ List<HudStat> hudStatsFor(Player player) => [
 String firepowerLabel(Player p) => p.overdrive > 0
     ? '火力 ${p.fireTier} · ${kWeaponRoutes[p.route]!.label}'
     : '火力 ${p.weaponLevel}';
+
+class HudMeter {
+  const HudMeter({
+    required this.visible,
+    required this.ratio,
+    required this.ready,
+    required this.label,
+  });
+  final bool visible, ready;
+  final double ratio;
+  final String label;
+}
+
+HudMeter resonanceMeterFor(int permille, int wave) {
+  final ready = wave >= kResonanceFromWave && permille >= 1000;
+  return HudMeter(
+    visible: wave >= kGrazeFromWave,
+    ratio: (permille / 1000).clamp(0, 1),
+    ready: ready,
+    label: ready ? '共鸣就绪 · 双击' : '共鸣',
+  );
+}

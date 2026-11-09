@@ -44,4 +44,25 @@ List<String> routeHints() => [
   for (final route in WeaponRoute.values)
     '${kWeaponRoutes[route]!.label}：${kWeaponRoutes[route]!.blurb}',
   '受伤先降一阶过载，再降火力等级；护盾可保护过载。',
+  '受伤会扣除 $kHitResonanceLoss 点共鸣，矛击蓄能保留。',
 ];
+
+List<String> controlHints() => [
+  '拖动屏幕任意位置移动战机，自动连续开火。',
+  '放慢或停下手指进入凝神：判定点缩小、弹道收束。',
+  '共鸣条蓄满后双击屏幕释放共鸣。',
+  '点击右下角炸弹按钮，清空敌弹并重创全场敌机。',
+  'Windows：方向键 / WASD 移动，Shift 凝神，空格或 B 放炸弹，R 共鸣，Esc 暂停。',
+];
+List<String> stanceHints() => [
+  '凝神：第 $kFocusFromWave 波起，手指放慢或松开自动进入；判定点缩小至 $kFocusHitRadius，弹道与僚机向机身收束。',
+  '擦弹：敌弹从判定外 $kGrazeBand 像素内掠过且未命中，得分并延长连击；运动中擦弹比凝神中更快蓄满共鸣条。',
+  '共鸣：第 $kResonanceFromWave 波起，条满后双击屏幕，吞噬身边弹幕转为分数，$kResonanceInvuln 秒无敌并修复卫星。',
+  '矛击：第 $kChargeFromWave 波起，凝神静止 $kChargeSeconds 秒蓄满，起手移动时射出穿透光矛；散射三束、贯穿可切割敌弹、聚能单点更重。',
+];
+String? systemHintForWave(int wave) {
+  if (wave == kFocusFromWave) return '凝神：放慢移动，判定缩小；贴近弹幕有擦弹加分';
+  if (wave == kResonanceFromWave) return '共鸣条蓄满后双击屏幕：吞噬身边弹幕';
+  if (wave == kChargeFromWave) return '静止蓄力，起手移动释放矛击';
+  return null;
+}

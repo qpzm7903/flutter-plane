@@ -378,6 +378,18 @@ const List<PlayerShotStyle> _playerShotStyles = [
     1.8,
     glowAlpha: 0.375,
   ),
+  PlayerShotStyle(
+    0xFFFFE9A8,
+    0xFFFFFBEA,
+    0xFFFFFFFF,
+    14,
+    22,
+    6,
+    19,
+    2.2,
+    glowAlpha: 0.375,
+    tailDots: 3,
+  ),
 ];
 PlayerShotStyle playerShotStyle(int kind) =>
     kind >= 0 && kind < _playerShotStyles.length

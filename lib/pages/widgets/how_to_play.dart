@@ -48,14 +48,10 @@ class _HowToPlayDialog extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 4),
-              const _Section(
+              _Section(
                 icon: Icons.touch_app_rounded,
                 title: '操作',
-                lines: [
-                  '拖动屏幕任意位置移动战机，自动连续开火。',
-                  '点击右下角炸弹按钮，清空敌弹并重创全场敌机。',
-                  'Windows：方向键 / WASD 移动，空格或 B 放炸弹，Esc 暂停。',
-                ],
+                lines: controlHints(),
               ),
               _Section(
                 icon: Icons.flag_rounded,
@@ -71,6 +67,11 @@ class _HowToPlayDialog extends StatelessWidget {
                 icon: Icons.account_tree_rounded,
                 title: '进化路线',
                 lines: routeHints(),
+              ),
+              _Section(
+                icon: Icons.center_focus_strong_rounded,
+                title: '凝神与擦弹',
+                lines: stanceHints(),
               ),
               _Section(
                 icon: Icons.bolt_rounded,

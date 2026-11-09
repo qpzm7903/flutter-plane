@@ -1,5 +1,6 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,6 +31,56 @@ Future<SettingsProvider> pumpGame(WidgetTester tester) async {
 }
 
 void main() {
+  SkyFighterGame gameOf(WidgetTester tester) => tester
+      .widget<GameWidget<SkyFighterGame>>(
+        find.byType(GameWidget<SkyFighterGame>),
+      )
+      .game!;
+  testWidgets('双击战场触发满条共鸣', (tester) async {
+    await pumpGame(tester);
+    final c = gameOf(tester).controller;
+    c.wave = 6;
+    c.player.resonance = 100;
+    await tester.tapAt(const Offset(200, 400));
+    await tester.pump(const Duration(milliseconds: 80));
+    await tester.tapAt(const Offset(200, 400));
+    expect(c.player.resonance, 0);
+    expect(c.player.invuln, greaterThan(0));
+    expect(c.player.charge, 1);
+  });
+  testWidgets('拖动和第二指针不触发共鸣', (tester) async {
+    await pumpGame(tester);
+    final c = gameOf(tester).controller;
+    c.wave = 6;
+    c.player.resonance = 100;
+    await tester.tapAt(const Offset(200, 400));
+    await tester.pump(const Duration(milliseconds: 50));
+    final first = await tester.startGesture(const Offset(200, 400), pointer: 1);
+    final second = await tester.startGesture(
+      const Offset(250, 400),
+      pointer: 2,
+    );
+    await second.up();
+    expect(c.player.resonance, 100);
+    await first.moveBy(const Offset(40, 0));
+    await first.moveBy(const Offset(-40, 0));
+    await first.up();
+    expect(c.player.resonance, 100);
+  });
+  testWidgets('Shift 与 R 接入控制器并在失焦时清凝神按键', (tester) async {
+    await pumpGame(tester);
+    final c = gameOf(tester).controller;
+    c.wave = 6;
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(c.player.focused, isTrue);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    c.player.resonance = 100;
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+    expect(c.player.resonance, 0);
+    expect(c.player.invuln, greaterThan(0));
+  });
+
   testWidgets('进入战斗后展示 HUD', (tester) async {
     await pumpGame(tester);
 

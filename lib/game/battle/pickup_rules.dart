@@ -200,6 +200,7 @@ class DropLedger {
 
 /// 受伤先降过载，再降基础火力；僚机数量与状态保持。
 void applyHitPenalty(Player player) {
+  player.resonance = math.max(0, player.resonance - kHitResonanceLoss);
   if (player.overdrive > 0) {
     player.overdrive = math.max(0, player.overdrive - kWeaponLossPerHit);
     if (player.overdrive == 0) player.route = null;

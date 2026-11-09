@@ -307,3 +307,65 @@ const double kGuardOffsetY = 34,
     kGuardRegenPerSec = 0.6,
     kGuardOverheat = 6,
     kGuardRestoreEnergy = 6;
+
+// ---- 姿态与共鸣
+const int kFocusFromWave = 3,
+    kGrazeFromWave = 3,
+    kResonanceFromWave = 5,
+    kChargeFromWave = 6;
+const double kFocusHitRadius = 6.5,
+    kMoveSpeedSmoothing = 12,
+    kFocusEnterSpeed = 42,
+    kFocusExitSpeed = 80,
+    kFocusEnterDelay = 0.12,
+    kFocusRiseRate = 6,
+    kFocusFallRate = 9,
+    kFocusKeySpeedScale = 0.45,
+    kFocusSqueezeX = 0.5,
+    kFocusSqueezeAngle = 0.6,
+    kFocusWingmanSqueeze = 0.35;
+const double kGrazeBand = 14,
+    kGrazeComboExtend = 0.25,
+    kGrazeGainMoving = 4,
+    kGrazeGainFocused = 2,
+    kGrazeTokensPerSec = 10,
+    kGrazeBucketCapacity = 4;
+const int kGrazeScore = 10,
+    kResonanceBulletScore = 20,
+    kResonanceMaxConvert = 60;
+const double kResonanceMax = 100,
+    kResonanceCost = 100,
+    kResonanceRadius = 170,
+    kResonanceInvuln = 1,
+    kHitResonanceLoss = 20,
+    kChargeSeconds = 1.5,
+    kChargeDecayPerSec = 1.2,
+    kChargeLanceSpeed = 760,
+    kTapMaxDuration = 0.18,
+    kTapMaxTravel = 14,
+    kDoubleTapWindow = 0.32;
+const int kChargePierce = 99;
+
+class ChargeSpec {
+  const ChargeSpec({
+    required this.angles,
+    required this.damage,
+    required this.radius,
+    this.cutsBullets = false,
+  });
+  final List<double> angles;
+  final double damage, radius;
+  final bool cutsBullets;
+}
+
+const kChargeSpecDefault = ChargeSpec(angles: [0], damage: 14, radius: 7);
+const kChargeSpecs = {
+  WeaponRoute.fan: ChargeSpec(angles: [-0.15, 0, 0.15], damage: 9, radius: 5.5),
+  WeaponRoute.pierce: ChargeSpec(
+    angles: [0],
+    damage: 14,
+    radius: 6,
+    cutsBullets: true,
+  ),
+  WeaponRoute.focus: ChargeSpec(angles: [0], damage: 26, radius: 8),
+};

@@ -9,18 +9,12 @@ void main() {
         moveAxisForKeys({LogicalKeyboardKey.arrowLeft}),
         const Offset(-1, 0),
       );
-      expect(
-        moveAxisForKeys({LogicalKeyboardKey.keyD}),
-        const Offset(1, 0),
-      );
+      expect(moveAxisForKeys({LogicalKeyboardKey.keyD}), const Offset(1, 0));
       expect(
         moveAxisForKeys({LogicalKeyboardKey.arrowUp}),
         const Offset(0, -1),
       );
-      expect(
-        moveAxisForKeys({LogicalKeyboardKey.keyS}),
-        const Offset(0, 1),
-      );
+      expect(moveAxisForKeys({LogicalKeyboardKey.keyS}), const Offset(0, 1));
     });
 
     test('斜向移动轴长度为 1', () {
@@ -56,6 +50,13 @@ void main() {
   });
 
   group('功能键', () {
+    test('Shift 凝神与 R 共鸣', () {
+      expect(isFocusKey(LogicalKeyboardKey.shiftLeft), isTrue);
+      expect(isFocusKey(LogicalKeyboardKey.shiftRight), isTrue);
+      expect(isFocusKey(LogicalKeyboardKey.keyR), isFalse);
+      expect(isResonanceKey(LogicalKeyboardKey.keyR), isTrue);
+      expect(isResonanceKey(LogicalKeyboardKey.keyB), isFalse);
+    });
     test('空格与 B 释放炸弹', () {
       expect(isBombKey(LogicalKeyboardKey.space), isTrue);
       expect(isBombKey(LogicalKeyboardKey.keyB), isTrue);
@@ -78,6 +79,9 @@ void main() {
         LogicalKeyboardKey.keyA,
         LogicalKeyboardKey.keyS,
         LogicalKeyboardKey.keyD,
+        LogicalKeyboardKey.shiftLeft,
+        LogicalKeyboardKey.shiftRight,
+        LogicalKeyboardKey.keyR,
         LogicalKeyboardKey.space,
         LogicalKeyboardKey.keyB,
         LogicalKeyboardKey.keyP,
@@ -85,7 +89,7 @@ void main() {
       ]) {
         expect(kBattleHandledKeys, contains(key));
       }
-      expect(kBattleHandledKeys, hasLength(12));
+      expect(kBattleHandledKeys, hasLength(15));
       expect(kBattleHandledKeys, isNot(contains(LogicalKeyboardKey.keyQ)));
     });
   });

@@ -31,6 +31,9 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final c = BattleController(size: const Size(400, 700))..start();
     addTearDown(c.dispose);
+    c.wave = 5;
+    c.player.resonance = 100;
+    c.update(0.1);
     c.player
       ..lives = 5
       ..bombs = 3
@@ -52,6 +55,8 @@ void main() {
         ),
       ),
     );
+    expect(find.text('双击'), findsOneWidget);
+    expect(find.byType(IgnorePointer), findsWidgets);
     expect(find.text('7聚'), findsOneWidget);
     expect(find.text('火力 7 · 聚能'), findsOneWidget);
     expect(find.text('12s'), findsOneWidget);
