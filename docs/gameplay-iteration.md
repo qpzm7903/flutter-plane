@@ -651,3 +651,15 @@ HudMeter resonanceMeterFor(int permille, int wave);
 - `git diff main --` 六个受保护文件为空；`DropLedger` 与补给权重未改，四个资源上限未提高，无新增补给、资源文件、存储键或音效。
 - `pubspec.yaml`、`AppConstants.version`、README 下载链接/tag 示例/版本表均为 0.7.0；未修改 CI、签名或密钥。
 - 审查结论：自动验收通过。触屏单手手感、真实 Boss 战手感与 320 dp/120 Hz 真机帧时间对照仍按 §9.6 保留设备验收，本次未宣称已完成真机验证。
+
+### 独立代码审查（第二轮）
+
+对照本文 §5–§9 通读 `d7650e6..HEAD` 的 `lib/` 差异，结论：**通过，无必须修复项**。
+
+- 凝神：`updateStance` 滞回（进 42 / 出 80，以旧 `focused` 取阈值）、0.12 s 进入延迟、第 3 波解锁与未解锁归零一致；`hitRadius` 仅用于敌弹/机体相撞，拾取仍用 `Player.radius`；收束只缩放 `offsetX/angle`，不动 `damage`；僚机内收 `1 - 0.35·focus`，卫星 `side == 0` 不受影响。
+- 擦弹：并入 `_collideEnemyShots` 单趟循环，先扫掠命中、后带内判定；`grazed` 先于令牌桶标记，被限速的弹不补记；`invuln > 0`、`wave < 3` 不结算；`_collideGuard` 先于它，卫星偷弹成立；特效 `grazeSpark` 不消耗 `_rng`。
+- 共鸣：门槛、归零、半径 170、前 60 发计分、`invuln = max`、卫星复位、第 6 波起满蓄、续连击均符合；不伤敌、不碰护盾、不走 `_rng`。
+- 矛击：仅在 `focus ≥ 0.95` 蓄能，满蓄不衰减，`focused` 真→假且 `charge ≥ 1` 才释放；路线规格与 `kChargeSpecs` 一致；切割只对 `cuts` 弹额外扫描，Boss 沿用既有不可穿透规则。
+- 保护项：六个受保护文件相对 `main` 无差异；`PowerUpKind` 仍为 7 项；第 1–2 波下 `focus/charge/resonance` 恒 0，几何因子恒为 1。
+- 小观察（不构成偏差）：`stanceHints` 的共鸣无敌时长由常量插值为 `1.0 秒`，与设计稿「1 秒」仅文字差异。
+- 未验证：手感与真机帧时间仍按 §9.6 保留设备验收。
