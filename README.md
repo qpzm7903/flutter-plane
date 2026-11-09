@@ -3,8 +3,8 @@
 经典竖版飞机大战：拖动战机躲避弹幕、自动开火、击破编队与 Boss，在连击倍率中冲刺最高分。
 覆盖 **Android / Windows / Web**，完全本地运行，无需联网。
 
-- 🎮 在线试玩：<http://192.168.31.120:8040/GTech/flutter-plane/>
-- ⬇️ 下载 Android APK / Windows ZIP：<http://192.168.31.120:3020/GTech/flutter-plane/releases/tag/v0.5.0>
+- 🎮 在线试玩：<https://qpzm7903.github.io/flutter-plane/>
+- ⬇️ 下载 Android APK / Windows ZIP：<https://github.com/qpzm7903/flutter-plane/releases/tag/v0.5.0>
 
 ## 特色
 
