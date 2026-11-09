@@ -77,6 +77,8 @@ class BattleController extends ChangeNotifier {
   ValueListenable<int> get resonanceMeter => _resonanceMeter;
   final _graze = GrazeLedger();
   int grazes = 0;
+  double grazePulse = 0, resonanceArm = 0;
+  double _emptyResonanceCooldown = 0;
   double _moveAccum = 0;
   bool _focusHeld = false;
   int _hintedWave = 0;
@@ -174,6 +176,7 @@ class BattleController extends ChangeNotifier {
     _drops.clearRun();
     _graze.clearRun();
     grazes = 0;
+    grazePulse = resonanceArm = _emptyResonanceCooldown = 0;
     _moveAccum = 0;
     _focusHeld = false;
     _hintedWave = 0;
@@ -255,13 +258,39 @@ class BattleController extends ChangeNotifier {
   int _scaled(int value) =>
       (value * multiplier * challengeModifier.scoreScale).round();
 
+  void armResonance() {
+    if (phase == BattlePhase.playing &&
+        player.alive &&
+        canResonate(player, wave)) {
+      resonanceArm = kDoubleTapWindow;
+    }
+  }
+
   void useResonance() {
     if (phase != BattlePhase.playing ||
         !player.alive ||
         !canResonate(player, wave)) {
       return;
     }
+    var available = 0;
+    for (final bullet in enemyBullets) {
+      final dx = bullet.x - player.x, dy = bullet.y - player.y;
+      if (!bullet.dead &&
+          dx * dx + dy * dy <= kResonanceRadius * kResonanceRadius) {
+        available++;
+      }
+    }
+    if (available < kResonanceMinConvert) {
+      if (_emptyResonanceCooldown <= 0) {
+        _effects.addPopup(
+          ScorePopup(x: player.x, y: player.y - 32, text: '无弹可吞'),
+        );
+        _emptyResonanceCooldown = 0.8;
+      }
+      return;
+    }
     player.resonance = 0;
+    resonanceArm = 0;
     var converted = 0;
     final center = Offset(player.x, player.y);
     for (final bullet in enemyBullets) {
@@ -281,12 +310,28 @@ class BattleController extends ChangeNotifier {
         _scaled(kResonanceBulletScore);
     score += gain;
     player.invuln = math.max(player.invuln, kResonanceInvuln);
+    var repaired = false;
     for (final wing in wingmen) {
       if (wing.role != WingmanRole.guard) continue;
+      repaired |= wing.overheat > 0 || wing.energy < kGuardMaxEnergy;
       wing.energy = kGuardMaxEnergy;
       wing.overheat = 0;
     }
-    if (wave >= kChargeFromWave) player.charge = 1;
+    if (repaired) {
+      _effects.addPopup(
+        ScorePopup(
+          x: player.x,
+          y: player.y - 46,
+          text: '卫星复位',
+          color: 0xFF9BFFEA,
+        ),
+      );
+    }
+    if (wave >= kChargeFromWave) {
+      player.charge = 1;
+      player.chargePower =
+          1 + math.min(converted, kLancePowerCapBullets) * kLancePowerPerBullet;
+    }
     if (combo > 0) comboTimer = kComboWindow;
     flash = math.max(flash, 0.2);
     shake = math.max(shake, 10);
@@ -331,6 +376,9 @@ class BattleController extends ChangeNotifier {
     if (phase != BattlePhase.playing) return;
 
     elapsed += dt;
+    grazePulse = math.max(0, grazePulse - 4 * dt);
+    resonanceArm = math.max(0, resonanceArm - dt);
+    _emptyResonanceCooldown = math.max(0, _emptyResonanceCooldown - dt);
     _effects.updateStars(dt, _size);
     _updatePlayer(dt);
     _updateWaves(dt);
@@ -418,6 +466,16 @@ class BattleController extends ChangeNotifier {
     _moveAccum += _moveAxis.distance * kPlayerSpeed * keyScale * dt;
     if (updateStance(p, dt, moved: _moveAccum, held: _focusHeld, wave: wave)) {
       appendChargeLance(p, playerBullets);
+      if (p.chargePower > 1.05) {
+        _effects.addPopup(
+          ScorePopup(
+            x: p.x,
+            y: p.y - 32,
+            text: '矛击 ×${p.chargePower.toStringAsFixed(1)}',
+          ),
+        );
+      }
+      p.chargePower = 1;
       _emit(BattleEvent.lance);
     }
     _moveAccum = 0;
@@ -450,7 +508,7 @@ class BattleController extends ChangeNotifier {
           player.x +
           wing.side *
               kWingmanOffsetX *
-              (1 - kFocusWingmanSqueeze * player.focus);
+              (1 - kFocusWingmanSqueeze * player.squeeze);
       final targetY = player.y + wingmanOffsetY(wing.role);
       final follow = math.min(1, dt * kWingmanFollowLerp);
       wing.x += (targetX - wing.x) * follow;
@@ -882,13 +940,13 @@ class BattleController extends ChangeNotifier {
       final band = Player.radius + kGrazeBand + bullet.radius;
       if (dx * dx + dy * dy > band * band) continue;
       bullet.grazed = true;
-      final before = _graze.total;
-      _graze.credit(player, wave: wave);
-      if (_graze.total == before) continue;
+      final reward = _graze.credit(player, wave: wave);
+      if (reward == null) continue;
+      grazePulse = 1;
       grazes = _graze.total;
-      score += _scaled(kGrazeScore);
+      score += _scaled(reward.score);
       if (combo > 0) {
-        comboTimer = math.min(kComboWindow, comboTimer + kGrazeComboExtend);
+        comboTimer = math.min(kComboWindow, comboTimer + reward.comboExtend);
       }
       _effects.grazeSpark(Offset(bullet.x, bullet.y), 0xFF9BFFEA);
     }
@@ -955,6 +1013,7 @@ class BattleController extends ChangeNotifier {
       return;
     }
     player.lives--;
+    player.chargePower = 1;
     applyHitPenalty(player);
     player.invuln = kHitInvuln;
     shake = math.max(shake, 14);

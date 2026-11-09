@@ -25,6 +25,8 @@ void main() {
         updateStance(p, 0.01, moved: 0, held: true, wave: wave);
       }
       expect(p.focus, 0);
+      expect(p.squeeze, 0);
+      expect(p.chargePower, 1);
       expect(p.focused, isFalse);
       expect(p.charge, 0);
     });
@@ -40,13 +42,13 @@ void main() {
     expect(p.focus, 1);
   });
   test('hysteresis preserves both sides in intermediate speed band', () {
-    final p = player()..moveSpeed = 60;
-    updateStance(p, 0.1, moved: 6, held: false, wave: 6);
+    final p = player()..moveSpeed = 50;
+    updateStance(p, 0.1, moved: 5, held: false, wave: 6);
     expect(p.focused, isFalse);
     p
       ..focused = true
       ..slowTime = 1;
-    updateStance(p, 0.1, moved: 6, held: false, wave: 6);
+    updateStance(p, 0.1, moved: 5, held: false, wave: 6);
     expect(p.focused, isTrue);
     updateStance(p, 0.1, moved: 20, held: false, wave: 6);
     expect(p.focused, isFalse);
@@ -102,7 +104,7 @@ void main() {
     test('level $level focus preserves damage and squeezes geometry', () {
       final p = player()..weaponLevel = level;
       final normal = buildPlayerShots(p);
-      p.focus = 1;
+      p.squeeze = 1;
       final focused = buildPlayerShots(p);
       expect(focused.length, normal.length);
       for (var i = 0; i < normal.length; i++) {
@@ -123,7 +125,7 @@ void main() {
           ..overdrive = tier
           ..route = route;
         final a = buildPlayerShots(p);
-        p.focus = 1;
+        p.squeeze = 1;
         final b = buildPlayerShots(p);
         expect(b.length, a.length);
         for (var i = 0; i < a.length; i++) {
@@ -170,12 +172,12 @@ void main() {
     expect(ledger.total, 4);
     expect(p.resonance, 16);
     ledger.refill(0.1);
-    expect(ledger.credit(p, wave: 3), 4);
+    expect(ledger.credit(p, wave: 3), kGrazeRewardMoving);
     ledger.refill(10);
     expect(ledger.tokens, kGrazeBucketCapacity);
     p.resonance = 99;
-    expect(ledger.credit(p, wave: 3), 1);
-    expect(ledger.credit(p, wave: 3), 0);
+    expect(ledger.credit(p, wave: 3), kGrazeRewardMoving);
+    expect(ledger.credit(p, wave: 3), kGrazeRewardMoving);
     expect(ledger.total, 7);
     ledger.clearRun();
     expect(ledger.total, 0);
@@ -184,10 +186,10 @@ void main() {
   test('moving and focused resonance gain and analytical requirement', () {
     final ledger = GrazeLedger();
     final p = player();
-    expect(ledger.credit(p, wave: 3), kGrazeGainMoving);
+    expect(ledger.credit(p, wave: 3), kGrazeRewardMoving);
     p.focus = 0.5;
-    expect(ledger.credit(p, wave: 3), kGrazeGainFocused);
-    expect(kResonanceMax / kGrazeGainMoving, 25);
+    expect(ledger.credit(p, wave: 3), kGrazeRewardFocused);
+    expect(kResonanceMax / kGrazeRewardMoving.resonance, 25);
   });
   test('hit penalty keeps charge and clamps resonance', () {
     final p = player()
@@ -230,19 +232,23 @@ void main() {
       expect(systemHintForWave(wave), isNull);
     }
   });
-  bool tap(DoubleTapDetector d, int down, int up, {Offset pos = Offset.zero}) =>
-      d.onUp(
-        downAt: Duration(milliseconds: down),
-        upAt: Duration(milliseconds: up),
-        downPos: Offset.zero,
-        upPos: pos,
-      );
+  TapResult tap(
+    DoubleTapDetector d,
+    int down,
+    int up, {
+    Offset pos = Offset.zero,
+  }) => d.onUp(
+    downAt: Duration(milliseconds: down),
+    upAt: Duration(milliseconds: up),
+    downPos: Offset.zero,
+    upPos: pos,
+  );
   test('double tap triggers once then requires two new taps', () {
     final d = DoubleTapDetector();
-    expect(tap(d, 0, 50), isFalse);
-    expect(tap(d, 100, 150), isTrue);
-    expect(tap(d, 200, 250), isFalse);
-    expect(tap(d, 300, 350), isTrue);
+    expect(tap(d, 0, 50), TapResult.first);
+    expect(tap(d, 100, 150), TapResult.double);
+    expect(tap(d, 200, 250), TapResult.first);
+    expect(tap(d, 300, 350), TapResult.double);
   });
   for (final invalid in ['duration', 'travel', 'interval']) {
     test('double tap rejects $invalid', () {
@@ -259,7 +265,7 @@ void main() {
               : 150,
           pos: invalid == 'travel' ? const Offset(14, 0) : Offset.zero,
         ),
-        isFalse,
+        invalid == 'interval' ? TapResult.first : TapResult.none,
       );
     });
   }

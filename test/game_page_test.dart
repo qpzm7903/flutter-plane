@@ -40,6 +40,20 @@ void main() {
     await pumpGame(tester);
     final c = gameOf(tester).controller;
     c.wave = 6;
+    c.enemyBullets.addAll(
+      List.generate(
+        4,
+        (_) => Bullet(
+          x: c.player.x + 50,
+          y: c.player.y,
+          vx: 0,
+          vy: 0,
+          radius: 3,
+          damage: 1,
+          fromPlayer: false,
+        ),
+      ),
+    );
     c.player.resonance = 100;
     await tester.tapAt(const Offset(200, 400));
     await tester.pump(const Duration(milliseconds: 80));
@@ -52,6 +66,20 @@ void main() {
     await pumpGame(tester);
     final c = gameOf(tester).controller;
     c.wave = 6;
+    c.enemyBullets.addAll(
+      List.generate(
+        4,
+        (_) => Bullet(
+          x: c.player.x + 50,
+          y: c.player.y,
+          vx: 0,
+          vy: 0,
+          radius: 3,
+          damage: 1,
+          fromPlayer: false,
+        ),
+      ),
+    );
     c.player.resonance = 100;
     await tester.tapAt(const Offset(200, 400));
     await tester.pump(const Duration(milliseconds: 50));
@@ -75,6 +103,20 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(c.player.focused, isTrue);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    c.enemyBullets.addAll(
+      List.generate(
+        4,
+        (_) => Bullet(
+          x: c.player.x + 50,
+          y: c.player.y,
+          vx: 0,
+          vy: 0,
+          radius: 3,
+          damage: 1,
+          fromPlayer: false,
+        ),
+      ),
+    );
     c.player.resonance = 100;
     await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
     expect(c.player.resonance, 0);

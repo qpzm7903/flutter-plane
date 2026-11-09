@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import '../game/battle/battle_types.dart';
+import '../game/battle/battle_tuning.dart';
 import '../game/ship_geometry.dart';
 
 export '../game/ship_geometry.dart';
@@ -424,3 +425,39 @@ final kGuardVisual = WingmanVisual(
   const Color(0xFF2EF2A8),
   const Color(0x00000000),
 );
+
+// Cached tiers keep heavy lances in a fixed number of batch buckets.
+final _heavyLanceStyles = [
+  for (final scale in [1.0, 1.2, 1.4])
+    PlayerShotStyle(
+      0xFFFFE9A8,
+      0xFFFFFBEA,
+      0xFFFFFFFF,
+      14 * scale,
+      22,
+      6 * scale,
+      19,
+      2.2,
+      glowAlpha: 0.375,
+      tailDots: 3,
+    ),
+];
+final _lanceVisualSpecs = [kChargeSpecDefault, ...kChargeSpecs.values];
+PlayerShotStyle chargeLanceStyle(Bullet bullet) {
+  var power = 1.0;
+  for (final spec in _lanceVisualSpecs) {
+    final candidate = bullet.damage / spec.damage;
+    if ((bullet.radius -
+                spec.radius * (1 + kLanceRadiusGrowth * (candidate - 1)))
+            .abs() <
+        0.0001) {
+      power = candidate;
+      break;
+    }
+  }
+  return _heavyLanceStyles[power <= 1.5
+      ? 0
+      : power <= 2.5
+      ? 1
+      : 2];
+}

@@ -8,6 +8,8 @@ import '../game/battle/battle_controller.dart';
 import '../game/battle/battle_types.dart';
 import '../game/battle/battle_tuning.dart';
 import '../game/logic_rate.dart';
+import '../game/battle/player_weapon.dart';
+import '../theme/app_theme.dart';
 import '../services/sound_service.dart';
 import 'battle_visuals.dart';
 import 'draw_batches.dart';
@@ -122,8 +124,9 @@ class BattleFieldComponent extends PositionComponent {
   }
 
   static GameSound _soundOf(BattleEvent event) => switch (event) {
-    BattleEvent.shoot || BattleEvent.lance => GameSound.shoot,
-    BattleEvent.resonance => GameSound.powerUp,
+    BattleEvent.shoot => GameSound.shoot,
+    BattleEvent.lance => GameSound.lance,
+    BattleEvent.resonance => GameSound.resonance,
     BattleEvent.explosion => GameSound.explosion,
     BattleEvent.bigExplosion => GameSound.bigExplosion,
     BattleEvent.powerUp => GameSound.powerUp,
@@ -360,12 +363,20 @@ class BattleFieldComponent extends PositionComponent {
         ..color = _fadeColor(stanceColor, player.focus)
         ..strokeWidth = 1;
       canvas.drawCircle(Offset.zero, player.hitRadius + 1.5, _stroke);
-      if (player.focus > 0.5) {
-        _stroke
-          ..color = _fadeColor(stanceColor, 0.18 * player.focus)
-          ..strokeWidth = 0.8;
-        canvas.drawCircle(Offset.zero, Player.radius + kGrazeBand, _stroke);
-      }
+    }
+    if (controller.wave >= kGrazeFromWave) {
+      final ready =
+          controller.wave >= kResonanceFromWave &&
+          player.resonance >= kResonanceCost;
+      final alpha = ready
+          ? (controller.resonanceArm > 0
+                ? 0.6
+                : 0.25 + 0.15 * math.sin(controller.elapsed * 6))
+          : 0.10 + 0.25 * controller.grazePulse + 0.18 * player.focus;
+      _stroke
+        ..color = _fadeColor(ready ? appAmber.toARGB32() : stanceColor, alpha)
+        ..strokeWidth = 0.8;
+      canvas.drawCircle(Offset.zero, Player.radius + kGrazeBand, _stroke);
     }
     if (player.charge > 0.02) {
       final pulse = player.charge >= 1
@@ -486,7 +497,9 @@ class BattleFieldComponent extends PositionComponent {
     // 玩家弹：辉光、弹体与弹芯一次遍历收集完再统一提交，
     // 每颗子弹只走一遍列表，不再分三趟读写批绘制缓冲。
     for (final bullet in controller.playerBullets) {
-      final s = playerShotStyle(bullet.kind);
+      final s = bullet.kind == BulletKind.chargeLance
+          ? chargeLanceStyle(bullet)
+          : playerShotStyle(bullet.kind);
       _dots.add(s.glowArgb, bullet.x, bullet.y, s.glowRadius, s.glowAlpha);
       _segments.add(
         s.bodyArgb,
@@ -513,7 +526,7 @@ class BattleFieldComponent extends PositionComponent {
           bullet.x - bullet.vx * k,
           bullet.y - bullet.vy * k,
           // 光矛三粒尾光共用半径桶，新增弹种最多增加三次批提交。
-          s.glowRadius / (bullet.kind == BulletKind.chargeLance ? 2 : i + 1),
+          bullet.kind == BulletKind.chargeLance ? 7 : s.glowRadius / (i + 1),
           s.glowAlpha,
         );
       }
@@ -582,6 +595,46 @@ class BattleFieldComponent extends PositionComponent {
     if (p.alive &&
         !(p.invuln > 0 && (controller.elapsed * 12).floor().isEven)) {
       if (p.focus > 0.05) _dots.add(0xFFFFFFFF, p.x, p.y, 2.4, p.focus);
+      final stanceColor = p.route == null
+          ? kPlayerTrim.toARGB32()
+          : kWeaponRoutes[p.route]!.argb;
+      if (p.squeeze > 0.05 && p.squeeze < 0.95) {
+        final dx = 16 * (1 - 0.4 * p.squeeze);
+        final alpha = 0.5 * math.sin(math.pi * p.squeeze);
+        _segments.add(
+          stanceColor,
+          p.x - dx,
+          p.y - 19,
+          p.x - dx,
+          p.y - 13,
+          1,
+          alpha,
+        );
+        _segments.add(
+          stanceColor,
+          p.x + dx,
+          p.y - 19,
+          p.x + dx,
+          p.y - 13,
+          1,
+          alpha,
+        );
+      }
+      if (p.charge >= 1 && p.focus > 0.5) {
+        final pulse = 0.7 + 0.3 * math.sin(controller.elapsed * math.pi * 16);
+        for (final angle in chargeSpecFor(p).angles) {
+          _segments.add(
+            stanceColor,
+            p.x,
+            p.y - 16,
+            p.x + math.sin(angle) * 140,
+            p.y - 16 - math.cos(angle) * 140,
+            1 + 0.25 * (p.chargePower - 1),
+            0.35 * pulse,
+          );
+        }
+      }
+
       if (p.charge >= 1) {
         final color = p.route == null
             ? kPlayerTrim.toARGB32()

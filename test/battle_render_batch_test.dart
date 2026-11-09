@@ -1,5 +1,4 @@
 import 'package:sky_fighter/game/battle/battle_tuning.dart';
-import 'package:sky_fighter/game/battle/player_weapon.dart';
 import 'package:sky_fighter/flame/battle_visuals.dart';
 
 import 'dart:typed_data';
@@ -10,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sky_fighter/flame/battle_field_component.dart';
 import 'package:sky_fighter/game/battle/battle_controller.dart';
 import 'package:sky_fighter/game/battle/battle_types.dart';
+import 'package:sky_fighter/game/battle/player_weapon.dart';
 import 'package:sky_fighter/game/logic_rate.dart';
 
 /// 统计绘制调用的画布：批绘制的调用数与点数都能直接断言。
@@ -20,6 +20,8 @@ class CountingCanvas implements Canvas {
   int rawPointCount = 0;
   int linePointCount = 0;
   int circleCalls = 0;
+  final circleRadii = <double>[];
+  final circleColors = <int>[];
   int arcCalls = 0;
   @override
   void drawArc(
@@ -51,6 +53,8 @@ class CountingCanvas implements Canvas {
   @override
   void drawCircle(Offset c, double radius, Paint paint) {
     circleCalls++;
+    circleRadii.add(radius);
+    circleColors.add(paint.color.toARGB32());
   }
 
   @override
@@ -187,8 +191,35 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'wave three graze band stays visible while moving and ready ring turns amber',
+    (tester) async {
+      final c = _controllerWithBullets();
+      addTearDown(c.dispose);
+      final component = BattleFieldComponent(
+        controller: c,
+        logicRate: LogicRate.hz120,
+      )..size = Vector2(400, 700);
+      addTearDown(component.onRemove);
+      final early = CountingCanvas();
+      component.render(early);
+      expect(early.circleRadii, isNot(contains(Player.radius + kGrazeBand)));
+      c.wave = 3;
+      final moving = CountingCanvas();
+      component.render(moving);
+      expect(moving.circleRadii, contains(Player.radius + kGrazeBand));
+      c.wave = 5;
+      c.player.resonance = 100;
+      c.armResonance();
+      final ready = CountingCanvas();
+      component.render(ready);
+      final ring = ready.circleRadii.indexOf(Player.radius + kGrazeBand);
+      expect(ready.circleColors[ring] & 0xFFFFFF, 0xFFC451);
+    },
+  );
+
   testWidgets('凝神满蓄与十六弹种一百五十敌弹三僚机保持预算', (tester) async {
-    final c = _controllerWithBullets();
+    final c = _controllerWithBullets()..wave = 6;
     addTearDown(c.dispose);
     c.enemies.clear();
     c.playerBullets.clear();
@@ -214,17 +245,23 @@ void main() {
       logicRate: LogicRate.hz120,
     )..size = Vector2(400, 700);
     addTearDown(component.onRemove);
+    for (final power in [1.0, 2.0, 3.0]) {
+      c.player.chargePower = power;
+      appendChargeLance(c.player, c.playerBullets);
+    }
     final before = CountingCanvas();
     component.render(before);
     c.player
       ..focus = 1
+      ..squeeze = .5
       ..charge = 1;
     final after = CountingCanvas();
     component.render(after);
-    expect(after.circleCalls - before.circleCalls, 2);
+    expect(after.circleCalls - before.circleCalls, 1);
     expect(after.arcCalls - before.arcCalls, 1);
-    expect(after.rawPointsCalls, 43);
+    expect(after.rawPointsCalls, lessThanOrEqualTo(49));
     expect(after.circleCalls, 6);
+    expect(after.arcCalls, lessThanOrEqualTo(2));
     expect(after.rawPointCount, greaterThan(before.rawPointCount));
     expect(tester.takeException(), isNull);
   });
@@ -257,7 +294,7 @@ void main() {
     addTearDown(component.onRemove);
     final canvas = CountingCanvas();
     component.render(canvas);
-    expect(canvas.rawPointsCalls, lessThanOrEqualTo(45));
+    expect(canvas.rawPointsCalls, lessThanOrEqualTo(49));
     expect(canvas.circleCalls, 0);
     expect(tester.takeException(), isNull);
   });

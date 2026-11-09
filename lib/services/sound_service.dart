@@ -12,6 +12,8 @@ import 'tone_synth.dart';
 /// 战斗反馈类型，决定提示音与震动的强弱。
 enum GameSound {
   shoot,
+  lance,
+  resonance,
   explosion,
   bigExplosion,
   powerUp,
@@ -128,6 +130,20 @@ class SoundService {
         decay: 6,
       ),
     ],
+    GameSound.lance: [
+      SynthNote(
+        frequency: 1100,
+        start: 0,
+        duration: 0.18,
+        gain: 0.8,
+        sweep: 2600 / 1100,
+        brightness: 1.5,
+      ),
+    ],
+    GameSound.resonance: [
+      SynthNote(frequency: 90, start: 0, duration: 0.32, gain: 0.6, decay: 2),
+      SynthNote(frequency: 440, start: 0, duration: 0.32, gain: 0.4, sweep: 2),
+    ],
     GameSound.powerUp: [
       SynthNote(frequency: 660, start: 0, duration: 0.09, gain: 0.26, decay: 2),
       SynthNote(
@@ -235,7 +251,7 @@ class SoundService {
   static Future<void> _load() async {
     try {
       await AudioEngine.ensureInitialized();
-      // 九个音效的采样合成一次放到后台 isolate，主线程只负责装载音源。
+      // 全部音效的采样合成一次放到后台 isolate，主线程只负责装载音源。
       final clips = await runSynth(_synthesizeAllClips);
       _clips.addAll(clips);
       for (final sound in GameSound.values) {
@@ -271,8 +287,10 @@ class SoundService {
     // 通道开销与持续震感，震动只保留给真正的战斗反馈。
     final Future<void> Function()? haptic = switch (sound) {
       GameSound.shoot || GameSound.ui => null,
-      GameSound.warning => HapticFeedback.mediumImpact,
-      GameSound.explosion || GameSound.powerUp => HapticFeedback.lightImpact,
+      GameSound.warning || GameSound.resonance => HapticFeedback.mediumImpact,
+      GameSound.explosion ||
+      GameSound.powerUp ||
+      GameSound.lance => HapticFeedback.lightImpact,
       GameSound.playerHit || GameSound.bomb => HapticFeedback.heavyImpact,
       GameSound.bigExplosion || GameSound.gameOver => HapticFeedback.vibrate,
     };
@@ -286,7 +304,14 @@ class SoundService {
       if (source == null) return;
       final soloud = SoLoud.instance;
       soloud.stopAudioSource(source);
-      soloud.play(source, volume: sound == GameSound.shoot ? 0.55 : 0.9);
+      soloud.play(
+        source,
+        volume: sound == GameSound.shoot
+            ? 0.55
+            : sound == GameSound.lance
+            ? 0.8
+            : 0.9,
+      );
     } catch (error) {
       debugPrint('[SoundService] 播放失败: $error');
     }

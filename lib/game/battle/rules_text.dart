@@ -43,26 +43,28 @@ List<String> dailyChallengeHints() => [
 List<String> routeHints() => [
   for (final route in WeaponRoute.values)
     '${kWeaponRoutes[route]!.label}：${kWeaponRoutes[route]!.blurb}',
+  '共鸣之后的那一矛：散射清场、贯穿割路、聚能斩击。',
   '受伤先降一阶过载，再降火力等级；护盾可保护过载。',
   '受伤会扣除 $kHitResonanceLoss 点共鸣，矛击蓄能保留。',
 ];
 
 List<String> controlHints() => [
   '拖动屏幕任意位置移动战机，自动连续开火。',
-  '放慢或停下手指进入凝神：判定点缩小、弹道收束。',
-  '共鸣条蓄满后双击屏幕释放共鸣。',
+  '放慢或停下手指进入凝神：判定点缩小；停稳约 $kSqueezeSeconds 秒后火力才收束。',
+  '共鸣条蓄满、身边有弹时，双击屏幕释放共鸣。',
   '点击右下角炸弹按钮，清空敌弹并重创全场敌机。',
   'Windows：方向键 / WASD 移动，Shift 凝神，空格或 B 放炸弹，R 共鸣，Esc 暂停。',
 ];
 List<String> stanceHints() => [
-  '凝神：第 $kFocusFromWave 波起，手指放慢或松开自动进入；判定点缩小至 $kFocusHitRadius，弹道与僚机向机身收束。',
-  '擦弹：敌弹从判定外 $kGrazeBand 像素内掠过且未命中，得分并延长连击；运动中擦弹比凝神中更快蓄满共鸣条。',
-  '共鸣：第 $kResonanceFromWave 波起，条满后双击屏幕，吞噬身边弹幕转为分数，$kResonanceInvuln 秒无敌并修复卫星。',
-  '矛击：第 $kChargeFromWave 波起，凝神静止 $kChargeSeconds 秒蓄满，起手移动时射出穿透光矛；散射三束、贯穿可切割敌弹、聚能单点更重。',
+  '凝神：第 $kFocusFromWave 波起，手指停稳自动进入；判定点缩小至 $kFocusHitRadius，停稳约 $kSqueezeSeconds 秒后弹道与僚机才向机身收束。',
+  '擦弹：敌弹从判定外 $kGrazeBand 像素内掠过且未命中。运动中擦弹 ${kGrazeRewardMoving.score} 分、共鸣 +${kGrazeRewardMoving.resonance}；凝神中 ${kGrazeRewardFocused.score} 分、共鸣 +${kGrazeRewardFocused.resonance}。',
+  '共鸣：第 $kResonanceFromWave 波起，条满后双击屏幕。身边至少 $kResonanceMinConvert 颗弹才会释放；吞噬转分，$kResonanceInvuln 秒无敌，修复卫星。',
+  '矛击：第 $kChargeFromWave 波起，凝神静止 $kChargeSeconds 秒蓄满，起手移动射出；共鸣也会瞬间充满。共鸣吞噬的弹越多，那一矛越重（最高 ×$kLancePowerMax），被击中则熄灭。',
+  '卫星会吃掉正前方的弹：更稳，但不涨共鸣。',
 ];
 String? systemHintForWave(int wave) {
-  if (wave == kFocusFromWave) return '凝神：放慢移动，判定缩小；贴近弹幕有擦弹加分';
-  if (wave == kResonanceFromWave) return '共鸣条蓄满后双击屏幕：吞噬身边弹幕';
-  if (wave == kChargeFromWave) return '静止蓄力，起手移动释放矛击';
+  if (wave == kFocusFromWave) return '凝神：停稳判定变小；贴近弹幕有擦弹加分';
+  if (wave == kResonanceFromWave) return '共鸣条满后双击：弹多时再放，吞得越多越划算';
+  if (wave == kChargeFromWave) return '静处蓄矛，起手移动射出；冲进弹幕放共鸣，矛更重';
   return null;
 }

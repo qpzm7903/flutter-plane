@@ -197,6 +197,7 @@ enum WeaponRoute { fan, pierce, focus }
 /// 玩家战机状态。
 class Player {
   double focus = 0, moveSpeed = 0, slowTime = 0, charge = 0, resonance = 0;
+  double squeeze = 0, chargePower = 1;
   bool focused = false;
   double get hitRadius => radius + (kFocusHitRadius - radius) * focus;
 

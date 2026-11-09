@@ -43,10 +43,11 @@ void main() {
     c.comboTimer = 1;
     c.enemyBullets.add(shot(c));
     c.update(0.001);
-    expect(c.score, (kGrazeScore * 2 * 1.1).round());
+    expect(c.score, (kGrazeRewardMoving.score * 2 * 1.1).round());
     c.player.resonance = 100;
+    c.enemyBullets.addAll(List.generate(4, (_) => shot(c)));
     c.useResonance();
-    expect(c.score, 22 + 44);
+    expect(c.score, 22 + 5 * 44);
   });
   test('identical kill scripts retain drop sequence with graze and resonance effects', () {
     final a = arena(), b = arena();
@@ -60,7 +61,7 @@ void main() {
         c.enemyBullets.clear();
         c.powerUps.clear();
       }
-      b.enemyBullets.add(shot(b));
+      b.enemyBullets.addAll(List.generate(4, (_) => shot(b)));
       a.update(0.001);
       b.update(0.001);
       b.player.resonance = 100;
@@ -102,8 +103,8 @@ void main() {
     c.update(0.001);
     expect(c.grazes, 1);
     expect(b.grazed, isTrue);
-    expect(c.score, kGrazeScore);
-    expect(c.player.resonance, kGrazeGainMoving);
+    expect(c.score, kGrazeRewardMoving.score);
+    expect(c.player.resonance, kGrazeRewardMoving.resonance);
     c.update(0.001);
     expect(c.grazes, 1);
   });
@@ -137,7 +138,7 @@ void main() {
     c.update(0.001);
     expect(c.player.lives, 3);
     expect(c.grazes, 1);
-    expect(c.player.resonance, kGrazeGainFocused);
+    expect(c.player.resonance, kGrazeRewardFocused.resonance);
   });
   test('graze bucket marks discarded bullets and limits later credits', () {
     final c = arena();
@@ -264,6 +265,7 @@ void main() {
       ..energy = 0
       ..overheat = 4;
     c.wingmen.add(guard);
+    c.enemyBullets.addAll(List.generate(4, (_) => shot(c)));
     c.useResonance();
     expect(c.player.invuln, 2);
     expect(guard.energy, kGuardMaxEnergy);
@@ -271,24 +273,26 @@ void main() {
   });
   test('wave five resonance does not fill locked charge', () {
     final c = arena(wave: 5);
+    c.enemyBullets.addAll(List.generate(4, (_) => shot(c)));
     c.player.resonance = 100;
     c.useResonance();
     expect(c.player.charge, 0);
   });
-  test('bomb and resonance commute for player resources', () {
+  test('bomb clearing protects resonance from an empty cast', () {
     final a = arena(), b = arena();
     for (final c in [a, b]) {
       c.player.resonance = 100;
-      c.enemyBullets.add(shot(c));
+      c.enemyBullets.addAll(List.generate(4, (_) => shot(c)));
     }
     a.useBomb();
     a.useResonance();
     b.useResonance();
     b.useBomb();
     expect(a.player.bombs, b.player.bombs);
-    expect(a.player.charge, b.player.charge);
-    expect(a.player.invuln, b.player.invuln);
-    expect(a.player.resonance, b.player.resonance);
+    expect(a.player.charge, 0);
+    expect(b.player.charge, 1);
+    expect(a.player.resonance, 100);
+    expect(b.player.resonance, 0);
     expect(a.enemyBullets, b.enemyBullets);
   });
   test('lance emitted only at focused to moving transition', () {
@@ -364,6 +368,7 @@ void main() {
   }
   test('wingmen tuck, guard remains in front', () {
     final c = arena();
+    c.player.squeeze = 1;
     c.player
       ..focus = 1
       ..focused = true

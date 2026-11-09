@@ -109,13 +109,13 @@ void appendPlayerShots(Player player, List<Bullet> out) {
   for (final shot in pattern) {
     out.add(
       Bullet(
-        x: player.x + shot.offsetX * (1 - kFocusSqueezeX * player.focus),
+        x: player.x + shot.offsetX * (1 - kFocusSqueezeX * player.squeeze),
         y: muzzleY,
         vx:
-            math.sin(shot.angle * (1 - kFocusSqueezeAngle * player.focus)) *
+            math.sin(shot.angle * (1 - kFocusSqueezeAngle * player.squeeze)) *
             kPlayerBulletSpeed,
         vy:
-            -math.cos(shot.angle * (1 - kFocusSqueezeAngle * player.focus)) *
+            -math.cos(shot.angle * (1 - kFocusSqueezeAngle * player.squeeze)) *
             kPlayerBulletSpeed,
         radius: shot.radius,
         damage: shot.damage,
@@ -213,10 +213,12 @@ const Map<WeaponRoute, List<List<PlayerShot>>> kOverdrivePatterns = {
   ],
 };
 
+ChargeSpec chargeSpecFor(Player player) =>
+    kChargeSpecs[player.overdrive > 0 ? player.route : null] ??
+    kChargeSpecDefault;
+
 void appendChargeLance(Player player, List<Bullet> out) {
-  final spec =
-      kChargeSpecs[player.overdrive > 0 ? player.route : null] ??
-      kChargeSpecDefault;
+  final spec = chargeSpecFor(player);
   for (final angle in spec.angles) {
     out.add(
       Bullet(
@@ -224,8 +226,9 @@ void appendChargeLance(Player player, List<Bullet> out) {
         y: player.y - 16,
         vx: math.sin(angle) * kChargeLanceSpeed,
         vy: -math.cos(angle) * kChargeLanceSpeed,
-        radius: spec.radius,
-        damage: spec.damage,
+        radius:
+            spec.radius * (1 + kLanceRadiusGrowth * (player.chargePower - 1)),
+        damage: spec.damage * player.chargePower,
         fromPlayer: true,
         kind: BulletKind.chargeLance,
         pierce: kChargePierce,

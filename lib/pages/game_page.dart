@@ -223,14 +223,17 @@ class _GamePageState extends State<GamePage> with WidgetsBindingObserver {
 
   void _onPointerUp(PointerUpEvent event) {
     if (_pointer != event.pointer) return;
-    if (_doubleTap.onUp(
+    final tap = _doubleTap.onUp(
       downAt: _downAt,
       upAt: event.timeStamp,
       downPos: _downPos,
       upPos: _tapTravel >= kTapMaxTravel
           ? _downPos + Offset(_tapTravel, 0)
           : event.localPosition,
-    )) {
+    );
+    if (tap == TapResult.first) {
+      _controller?.armResonance();
+    } else if (tap == TapResult.double) {
       _controller?.useResonance();
     }
     _pointer = null;

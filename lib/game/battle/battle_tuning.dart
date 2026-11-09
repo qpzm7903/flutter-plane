@@ -316,30 +316,23 @@ const int kFocusFromWave = 3,
 const double kFocusHitRadius = 6.5,
     kMoveSpeedSmoothing = 12,
     kFocusEnterSpeed = 42,
-    kFocusExitSpeed = 80,
+    kFocusExitSpeed = 60,
     kFocusEnterDelay = 0.12,
     kFocusRiseRate = 6,
     kFocusFallRate = 9,
     kFocusKeySpeedScale = 0.45,
-    kFocusSqueezeX = 0.5,
-    kFocusSqueezeAngle = 0.6,
+    kFocusSqueezeX = 0.4,
+    kFocusSqueezeAngle = 0.4,
     kFocusWingmanSqueeze = 0.35;
-const double kGrazeBand = 14,
-    kGrazeComboExtend = 0.25,
-    kGrazeGainMoving = 4,
-    kGrazeGainFocused = 2,
-    kGrazeTokensPerSec = 10,
-    kGrazeBucketCapacity = 4;
-const int kGrazeScore = 10,
-    kResonanceBulletScore = 20,
-    kResonanceMaxConvert = 60;
+const double kGrazeBand = 14, kGrazeTokensPerSec = 10, kGrazeBucketCapacity = 4;
+const int kResonanceBulletScore = 20, kResonanceMaxConvert = 60;
 const double kResonanceMax = 100,
     kResonanceCost = 100,
     kResonanceRadius = 170,
     kResonanceInvuln = 1,
     kHitResonanceLoss = 20,
     kChargeSeconds = 1.5,
-    kChargeDecayPerSec = 1.2,
+    kChargeDecayPerSec = 0.6,
     kChargeLanceSpeed = 760,
     kTapMaxDuration = 0.18,
     kTapMaxTravel = 14,
@@ -369,3 +362,36 @@ const kChargeSpecs = {
   ),
   WeaponRoute.focus: ChargeSpec(angles: [0], damage: 26, radius: 8),
 };
+
+const double kSqueezeRiseRate = 2.5,
+    kSqueezeRiseHeld = 8,
+    kSqueezeFallRate = 12,
+    kSqueezeSeconds = 0.4,
+    kDoubleTapMaxGap = 56,
+    kLancePowerPerBullet = 0.05,
+    kLancePowerMax = 3.0,
+    kLanceRadiusGrowth = 0.2;
+const int kResonanceMinConvert = 4, kLancePowerCapBullets = 40;
+
+class GrazeReward {
+  const GrazeReward({
+    required this.resonance,
+    required this.score,
+    required this.comboExtend,
+  });
+  final double resonance, comboExtend;
+  final int score;
+}
+
+const kGrazeRewardMoving = GrazeReward(
+  resonance: 4,
+  score: 10,
+  comboExtend: 0.25,
+);
+const kGrazeRewardFocused = GrazeReward(
+  resonance: 2,
+  score: 6,
+  comboExtend: 0.15,
+);
+GrazeReward grazeRewardFor(double focus) =>
+    focus < 0.5 ? kGrazeRewardMoving : kGrazeRewardFocused;
