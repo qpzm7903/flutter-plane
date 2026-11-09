@@ -74,6 +74,7 @@ class BulletKind {
   static const int phase = 5;
   static const int twin = 6, needle = 7, lance = 8, nova = 9;
   static const int galeBolt = 10, heavyBolt = 11;
+  static const int fanBolt = 12, rail = 13, focusBolt = 14;
   static bool isPlayer(int kind) => kind == player || kind >= twin;
 }
 
@@ -187,8 +188,16 @@ const Map<EnemyKind, EnemySpec> kEnemySpecs = {
   ),
 };
 
+/// 满级火力的过载路线。
+enum WeaponRoute { fan, pierce, focus }
+
 /// 玩家战机状态。
 class Player {
+  /// 过载为零时无路线；过载生效时基础火力恒为满级。
+  WeaponRoute? route;
+  int overdrive = 0;
+  int get fireTier => weaponLevel + overdrive;
+  static const int maxOverdrive = 2;
   Player({required this.x, required this.y});
 
   double x;
@@ -219,21 +228,26 @@ class Player {
   static const int maxLives = 5;
   static const int maxBombs = 3;
   static const int maxWeaponLevel = 6;
-  static const int maxWingmen = 2;
+  static const int maxWingmen = 3;
 }
 
-enum WingmanRole { gale, heavy }
+enum WingmanRole { gale, heavy, guard }
 
-/// 僚机：在玩家两侧护航并自动开火。
+/// 两翼僚机自动开火，前置护卫卫星吸收敌弹。
 class Wingman {
   Wingman({required this.side, required this.x, required this.y});
 
-  /// -1 为左翼，1 为右翼。
+  /// -1 为左翼，1 为右翼，0 为前置卫星。
   final int side;
-  WingmanRole get role => side < 0 ? WingmanRole.gale : WingmanRole.heavy;
+  WingmanRole get role => side < 0
+      ? WingmanRole.gale
+      : side == 0
+      ? WingmanRole.guard
+      : WingmanRole.heavy;
   double x;
   double y;
   double cooldown = 0;
+  double energy = 0, overheat = 0;
 }
 
 /// 敌机实例。
@@ -317,16 +331,18 @@ class Bullet {
   /// 弹种编号，敌弹与玩家各级弹道的取值见 [BulletKind]。
   final int kind;
 
-  /// 剩余普通敌机穿透次数；上次命中引用避免跨帧重复结算。
+  /// 剩余普通敌机穿透次数；最近两次命中引用避免跨帧重复结算。
   int pierce;
   Enemy? lastHit;
+  Enemy? prevHit;
   bool dead = false;
 }
 
 /// 补给类型。
-enum PowerUpKind { weapon, shield, bomb, star, rapid, wingman }
+enum PowerUpKind { weapon, shield, bomb, star, rapid, wingman, core }
 
 const Map<PowerUpKind, String> kPowerUpLabels = {
+  PowerUpKind.core: '核心',
   PowerUpKind.weapon: '火力',
   PowerUpKind.shield: '护盾',
   PowerUpKind.bomb: '炸弹',

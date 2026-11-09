@@ -1,3 +1,4 @@
+import 'package:sky_fighter/game/battle/battle_tuning.dart';
 import 'package:sky_fighter/game/battle/player_weapon.dart';
 import 'package:sky_fighter/flame/battle_visuals.dart';
 
@@ -114,13 +115,73 @@ BattleController _controllerWithBullets() {
 }
 
 void main() {
-  testWidgets('全部十二种弹种同屏保持批绘制预算', (tester) async {
+  testWidgets('240 颗 kind 0 三层外观绘制调用不超过 12', (tester) async {
+    final c = _controllerWithBullets();
+    addTearDown(c.dispose);
+    c
+      ..playerBullets.clear()
+      ..enemyBullets.clear()
+      ..enemies.clear();
+    for (var n = 0; n < 240; n++) {
+      c.playerBullets.add(
+        Bullet(
+          x: 20 + n % 20 * 18,
+          y: 100 + n ~/ 20 * 30,
+          vx: 0,
+          vy: -560,
+          radius: 3.4,
+          damage: 1,
+          fromPlayer: true,
+        ),
+      );
+    }
+    final component = BattleFieldComponent(
+      controller: c,
+      logicRate: LogicRate.hz120,
+    )..size = Vector2(400, 700);
+    addTearDown(component.onRemove);
+    final canvas = CountingCanvas();
+    component.render(canvas);
+    expect(canvas.rawPointsCalls, lessThanOrEqualTo(12));
+    expect(canvas.rawPointCount, greaterThanOrEqualTo(240 * 3));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('核心循环三种字形缓存最多三个，卫星过热可绘制', (tester) async {
+    final c = _controllerWithBullets();
+    addTearDown(c.dispose);
+    c
+      ..playerBullets.clear()
+      ..enemyBullets.clear()
+      ..enemies.clear()
+      ..popups.clear();
+    final core = PowerUp(x: 100, y: 200, kind: PowerUpKind.core);
+    c.powerUps.add(core);
+    c.wingmen.add(Wingman(side: 0, x: 200, y: 500)..overheat = 3);
+    final component = BattleFieldComponent(
+      controller: c,
+      logicRate: LogicRate.hz120,
+    )..size = Vector2(400, 700);
+    addTearDown(component.onRemove);
+    final recorder = PictureRecorder();
+    final canvas = Canvas(recorder);
+    for (var n = 0; n < 60; n++) {
+      core.age = (n % 3) * kCoreCycleSeconds;
+      c.elapsed = n / 10;
+      component.render(canvas);
+    }
+    recorder.endRecording().dispose();
+    expect(component.cachedTextPainters, 3);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('全部十五种弹种同屏保持批绘制预算', (tester) async {
     final c = _controllerWithBullets();
     addTearDown(c.dispose);
     c.playerBullets.clear();
     c.enemyBullets.clear();
     c.enemies.clear();
-    for (var kind = 0; kind < 12; kind++) {
+    for (var kind = 0; kind < 15; kind++) {
       for (var i = 0; i < 10; i++) {
         final b = Bullet(
           x: 50 + i * 20,
@@ -142,56 +203,69 @@ void main() {
     addTearDown(component.onRemove);
     final canvas = CountingCanvas();
     component.render(canvas);
-    expect(canvas.rawPointsCalls, lessThanOrEqualTo(40));
+    expect(canvas.rawPointsCalls, lessThanOrEqualTo(42));
     expect(canvas.circleCalls, 0);
     expect(tester.takeException(), isNull);
   });
-  for (final mixed in [false, true]) {
-    testWidgets('满级弹道加双僚机与一百五十敌弹保持预算（混色：$mixed）', (tester) async {
-      final c = _controllerWithBullets();
-      addTearDown(c.dispose);
-      c.enemies.clear();
-      if (!mixed) {
-        // 单类密集齐射场景；另测三类敌弹混合时的额外颜色桶。
-        c.enemyBullets.clear();
-        for (var i = 0; i < 150; i++) {
-          c.enemyBullets.add(
-            Bullet(
-              x: 20 + i % 20 * 18,
-              y: 200 + i ~/ 20 * 30,
-              vx: 0,
-              vy: 160,
-              radius: 4.2,
-              damage: 1,
-              fromPlayer: false,
-              kind: BulletKind.aimed,
-            ),
+  for (final overdrive in [false, true]) {
+    for (final mixed in [false, true]) {
+      testWidgets('满级弹道与一百五十敌弹保持预算（过载：$overdrive，混色：$mixed）', (tester) async {
+        final c = _controllerWithBullets();
+        addTearDown(c.dispose);
+        c.enemies.clear();
+        if (!mixed) {
+          // 单类密集齐射场景；另测三类敌弹混合时的额外颜色桶。
+          c.enemyBullets.clear();
+          for (var i = 0; i < 150; i++) {
+            c.enemyBullets.add(
+              Bullet(
+                x: 20 + i % 20 * 18,
+                y: 200 + i ~/ 20 * 30,
+                vx: 0,
+                vy: 160,
+                radius: 4.2,
+                damage: 1,
+                fromPlayer: false,
+                kind: BulletKind.aimed,
+              ),
+            );
+          }
+        }
+        c.playerBullets.clear();
+        c.player.weaponLevel = 6;
+        if (overdrive) {
+          c.player
+            ..overdrive = 2
+            ..route = WeaponRoute.fan;
+          c.wingmen.add(
+            Wingman(side: 0, x: 200, y: 566)..energy = kGuardMaxEnergy,
           );
         }
-      }
-      c.playerBullets.clear();
-      c.player.weaponLevel = 6;
-      appendPlayerShots(c.player, c.playerBullets);
-      for (final side in [-1, 1]) {
-        final wing = Wingman(side: side, x: 200 + side * 27, y: 600);
-        c.wingmen.add(wing);
-        appendWingmanShots(wing, c.playerBullets);
-      }
-      final component = BattleFieldComponent(
-        controller: c,
-        logicRate: LogicRate.hz120,
-      )..size = Vector2(400, 700);
-      addTearDown(component.onRemove);
-      final canvas = CountingCanvas();
-      component.render(canvas);
-      expect(canvas.rawPointsCalls, lessThanOrEqualTo(mixed ? 24 : 20));
-      expect(canvas.circleCalls, 4);
-      c.wingmen.clear();
-      final empty = CountingCanvas();
-      component.render(empty);
-      expect(empty.circleCalls, 0);
-      expect(tester.takeException(), isNull);
-    });
+        appendPlayerShots(c.player, c.playerBullets);
+        for (final side in [-1, 1]) {
+          final wing = Wingman(side: side, x: 200 + side * 27, y: 600);
+          c.wingmen.add(wing);
+          appendWingmanShots(wing, c.playerBullets);
+        }
+        final component = BattleFieldComponent(
+          controller: c,
+          logicRate: LogicRate.hz120,
+        )..size = Vector2(400, 700);
+        addTearDown(component.onRemove);
+        final canvas = CountingCanvas();
+        component.render(canvas);
+        expect(
+          canvas.rawPointsCalls,
+          lessThanOrEqualTo(overdrive ? (mixed ? 26 : 22) : (mixed ? 23 : 19)),
+        );
+        expect(canvas.circleCalls, 4);
+        c.wingmen.clear();
+        final empty = CountingCanvas();
+        component.render(empty);
+        expect(empty.circleCalls, 0);
+        expect(tester.takeException(), isNull);
+      });
+    }
   }
   testWidgets('玩家弹线段沿速度方向，弹芯层统一覆盖弹体', (tester) async {
     final c = _controllerWithBullets();

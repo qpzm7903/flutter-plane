@@ -57,6 +57,8 @@ void main() {
     expect(find.text('补给'), findsOneWidget);
     expect(find.text('连击'), findsOneWidget);
 
+    expect(find.text('进化路线'), findsOneWidget);
+    await tester.ensureVisible(find.text('明白了'));
     await tester.tap(find.text('明白了'));
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.text('操作'), findsNothing);

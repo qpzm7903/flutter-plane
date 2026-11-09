@@ -7,6 +7,101 @@ import 'package:sky_fighter/game/battle/battle_types.dart';
 import 'package:sky_fighter/game/battle/player_weapon.dart';
 
 void main() {
+  const counts = [
+    [13, 15],
+    [9, 9],
+    [5, 7],
+  ];
+  const totals = [
+    [14, 16],
+    [11, 13],
+    [7, 9],
+  ];
+  const singles = [
+    [4, 4],
+    [5, 7],
+    [7, 9],
+  ];
+  const kinds = [
+    {7, 8, 9, 12},
+    {7, 13},
+    {8, 9, 14},
+  ];
+  final baseInterval = playerFireInterval(6, rapid: false);
+  for (final route in WeaponRoute.values) {
+    for (var tier = 1; tier <= Player.maxOverdrive; tier++) {
+      test('$route 阶 $tier 弹道、汇聚几何与 DPS 护栏', () {
+        final pattern = kOverdrivePatterns[route]![tier - 1];
+        final total = pattern.fold<double>(0, (n, s) => n + s.damage);
+        final st = pattern
+            .where(
+              (s) =>
+                  (s.offsetX + math.tan(s.angle) * 300).abs() <= 18 + s.radius,
+            )
+            .fold<double>(0, (n, s) => n + s.damage);
+        final interval = playerFireInterval(6, rapid: false, route: route);
+        expect(pattern, hasLength(counts[route.index][tier - 1]));
+        expect(total, totals[route.index][tier - 1]);
+        expect(st, singles[route.index][tier - 1]);
+        expect(pattern.map((s) => s.kind).toSet(), kinds[route.index]);
+        expect(
+          interval,
+          closeTo(
+            baseInterval * kWeaponRoutes[route]!.fireIntervalScale,
+            1e-10,
+          ),
+        );
+        expect(
+          playerFireInterval(6, rapid: true, route: route),
+          closeTo(interval * kRapidFireIntervalScale, 1e-10),
+        );
+        expect(
+          st / interval,
+          inInclusiveRange(4 / baseInterval, 8 / baseInterval),
+        );
+        expect(total / interval, lessThanOrEqualTo(10 / baseInterval * 1.9));
+        expect(pattern.every((s) => s.pierce <= kMaxPierce), isTrue);
+        for (final shot in pattern.where(
+          (s) => s.kind == BulletKind.focusBolt,
+        )) {
+          expect(
+            (shot.offsetX + math.tan(shot.angle) * 300).abs(),
+            lessThan(1),
+          );
+          expect(shot.offsetX * shot.angle, lessThan(0));
+        }
+        final p = Player(x: 200, y: 600)
+          ..weaponLevel = 6
+          ..route = route
+          ..overdrive = tier;
+        expect(buildPlayerShots(p), hasLength(pattern.length));
+        if (tier == 2) {
+          final previous = singles[route.index][0] / interval;
+          expect(
+            st / interval,
+            route == WeaponRoute.fan ? previous : greaterThan(previous),
+          );
+        }
+      });
+    }
+  }
+  test('无过载与低等级使用基础表，散射二阶全部扇弹可穿透', () {
+    final p = Player(x: 200, y: 600)
+      ..weaponLevel = 6
+      ..route = WeaponRoute.fan;
+    expect(buildPlayerShots(p), hasLength(9));
+    p
+      ..weaponLevel = 3
+      ..overdrive = 2;
+    expect(buildPlayerShots(p), hasLength(4));
+    expect(
+      kOverdrivePatterns[WeaponRoute.fan]![1]
+          .where((s) => s.kind == BulletKind.fanBolt)
+          .every((s) => s.pierce == 1),
+      isTrue,
+    );
+  });
+
   test('六级弹种、伤害、穿透与名义火力符合配置', () {
     const counts = [1, 2, 4, 5, 7, 9];
     const damage = [1, 2, 4, 6, 8, 10];

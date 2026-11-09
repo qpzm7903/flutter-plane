@@ -68,6 +68,11 @@ class _HowToPlayDialog extends StatelessWidget {
                 lines: supplyHints(),
               ),
               _Section(
+                icon: Icons.account_tree_rounded,
+                title: '进化路线',
+                lines: routeHints(),
+              ),
+              _Section(
                 icon: Icons.bolt_rounded,
                 title: '连击',
                 lines: comboHints(),

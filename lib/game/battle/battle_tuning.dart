@@ -95,9 +95,15 @@ const double kWeaponFireStepPerLevel = 0.008;
 const double kRapidFireIntervalScale = 0.62;
 
 /// 当前火力与急速状态下的射击间隔（秒）。
-double playerFireInterval(int weaponLevel, {required bool rapid}) {
+double playerFireInterval(
+  int weaponLevel, {
+  required bool rapid,
+  WeaponRoute? route,
+}) {
   final level = math.max(1, weaponLevel);
-  final base = kBaseFireInterval - kWeaponFireStepPerLevel * (level - 1);
+  final base =
+      (kBaseFireInterval - kWeaponFireStepPerLevel * (level - 1)) *
+      (route == null ? 1 : kWeaponRoutes[route]!.fireIntervalScale);
   return rapid ? base * kRapidFireIntervalScale : base;
 }
 
@@ -246,3 +252,58 @@ const double kShootSoundInterval = 0.12;
 
 /// 敌机受击闪白的持续时间。
 const double kEnemyHitFlashDuration = 0.09;
+
+class RouteSpec {
+  const RouteSpec({
+    required this.label,
+    required this.glyph,
+    required this.argb,
+    required this.fireIntervalScale,
+    required this.blurb,
+  });
+  final String label, glyph, blurb;
+  final int argb;
+  final double fireIntervalScale;
+}
+
+const kWeaponRoutes = {
+  WeaponRoute.fan: RouteSpec(
+    label: '散射',
+    glyph: '散',
+    argb: 0xFF2EF2A8,
+    fireIntervalScale: 0.88,
+    blurb: '扩大扇面覆盖，擅长清场；单点伤害提升有限。',
+  ),
+  WeaponRoute.pierce: RouteSpec(
+    label: '贯穿',
+    glyph: '贯',
+    argb: 0xFFB8E6FF,
+    fireIntervalScale: 1,
+    blurb: '纵向贯穿两架普通敌机，中路重击；边路较弱。',
+  ),
+  WeaponRoute.focus: RouteSpec(
+    label: '聚能',
+    glyph: '聚',
+    argb: 0xFF8C7BFF,
+    fireIntervalScale: 1.2,
+    blurb: '放弃覆盖，弹道向中路汇聚，擅长单点爆发。',
+  ),
+};
+const int kOverdriveFromWave = 5, kCoreCooldownKills = 30, kCoreCapScore = 400;
+const double kCoreCycleSeconds = 0.9;
+WeaponRoute coreRouteAt(double age) =>
+    WeaponRoute.values[(age / kCoreCycleSeconds).floor() %
+        WeaponRoute.values.length];
+int wingmanSideFor(int countAfterPickup) => switch (countAfterPickup) {
+  1 => -1,
+  2 => 1,
+  _ => 0,
+};
+double wingmanOffsetY(WingmanRole role) =>
+    role == WingmanRole.guard ? -kGuardOffsetY : kWingmanOffsetY;
+const double kGuardOffsetY = 34,
+    kGuardRadius = 15,
+    kGuardMaxEnergy = 12,
+    kGuardRegenPerSec = 0.6,
+    kGuardOverheat = 6,
+    kGuardRestoreEnergy = 6;

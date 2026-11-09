@@ -276,6 +276,7 @@ int enemyBulletArgb(int kind) =>
     kEnemyBulletArgb[kind] ?? kEnemyBulletArgb[BulletKind.boss]!;
 
 const Map<PowerUpKind, Color> kPowerUpColors = {
+  PowerUpKind.core: Color(0xFF2EF2A8),
   PowerUpKind.weapon: Color(0xFFFFB347),
   PowerUpKind.shield: Color(0xFF7FD8FF),
   PowerUpKind.bomb: Color(0xFFFF6B6B),
@@ -353,6 +354,30 @@ const List<PlayerShotStyle> _playerShotStyles = [
   ),
   PlayerShotStyle(0xFF9BFFEA, 0xFF9BFFEA, 0xFFFFFFFF, 4.5, 3.5, 2.6, 2.4, 1.1),
   PlayerShotStyle(0xFF5C8CFF, 0xFF8FB8FF, 0xFFFFFFFF, 8, 6, 5.4, 4.5, 2),
+  PlayerShotStyle(0xFF2EF2A8, 0xFF8CFFD6, 0xFFF0FFFA, 6, 6, 3.6, 4.5, 1.4),
+  PlayerShotStyle(
+    0xFFB8E6FF,
+    0xFFF2FBFF,
+    0xFFFFFFFF,
+    11,
+    16,
+    5.4,
+    14,
+    2.2,
+    glowAlpha: 0.375,
+    tailDots: 3,
+  ),
+  PlayerShotStyle(
+    0xFF8C7BFF,
+    0xFFC4BBFF,
+    0xFFFFFFFF,
+    7,
+    8,
+    4.6,
+    6,
+    1.8,
+    glowAlpha: 0.375,
+  ),
 ];
 PlayerShotStyle playerShotStyle(int kind) =>
     kind >= 0 && kind < _playerShotStyles.length
@@ -380,3 +405,10 @@ final Map<WingmanRole, WingmanVisual> kWingmanVisuals = {
     const Color(0xAA5C8CFF),
   ),
 };
+
+final kGuardVisual = WingmanVisual(
+  wingmanGuardHullPath,
+  const Color(0xFF0E3B4F),
+  const Color(0xFF2EF2A8),
+  const Color(0x00000000),
+);

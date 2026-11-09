@@ -1,8 +1,19 @@
+import 'package:sky_fighter/game/battle/battle_tuning.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sky_fighter/flame/battle_visuals.dart';
 import 'package:sky_fighter/game/battle/battle_types.dart';
 
 void main() {
+  test('路线弹种显式样式与路线辉光色一致', () {
+    for (final route in WeaponRoute.values) {
+      final style = playerShotStyle(12 + route.index);
+      expect(style, isNot(same(playerShotStyle(0))));
+      expect(style.glowArgb, kWeaponRoutes[route]!.argb);
+    }
+    expect(playerShotStyle(BulletKind.rail).tailDots, 3);
+    expect(kGuardVisual.path.getBounds().height, 12);
+  });
+
   group('敌机外观配置', () {
     test('每种敌机都有轮廓与配色', () {
       for (final kind in EnemyKind.values) {

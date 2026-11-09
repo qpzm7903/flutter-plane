@@ -28,6 +28,23 @@ class PlayerShot {
       );
   const PlayerShot.nova(double x)
     : this(x, 0, kind: BulletKind.nova, radius: 4.2, damage: 2, pierce: 1);
+  const PlayerShot.fan(double x, double angle, {int pierce = 0})
+    : this(x, angle, kind: BulletKind.fanBolt, radius: 3.6, pierce: pierce);
+  const PlayerShot.rail(
+    double x, {
+    double damage = 1,
+    double radius = 3.6,
+    int pierce = 2,
+  }) : this(
+         x,
+         0,
+         kind: BulletKind.rail,
+         damage: damage,
+         radius: radius,
+         pierce: pierce,
+       );
+  const PlayerShot.focus(double x, double angle, {double damage = 1})
+    : this(x, angle, kind: BulletKind.focusBolt, damage: damage);
   final int kind, pierce;
   final double damage, radius;
 
@@ -62,17 +79,7 @@ const List<List<PlayerShot>> kPlayerWeaponPatterns = [
     PlayerShot.needle(-16, -0.3),
     PlayerShot.needle(16, 0.3),
   ],
-  [
-    PlayerShot.lance(-9, damage: 1),
-    PlayerShot.nova(0),
-    PlayerShot.lance(9, damage: 1),
-    PlayerShot.needle(-14, -0.13),
-    PlayerShot.needle(14, 0.13),
-    PlayerShot.needle(-18, -0.28),
-    PlayerShot.needle(18, 0.28),
-    PlayerShot.needle(-21, -0.43),
-    PlayerShot.needle(21, 0.43),
-  ],
+  _kLevel6Shots,
 ];
 
 int firstPiercingLevel() => kPlayerWeaponPatterns.indexWhere(
@@ -90,7 +97,16 @@ List<Bullet> buildPlayerShots(Player player) {
 void appendPlayerShots(Player player, List<Bullet> out) {
   final level = player.weaponLevel.clamp(1, Player.maxWeaponLevel);
   final muzzleY = player.y - 16;
-  for (final shot in kPlayerWeaponPatterns[level]) {
+  final pattern =
+      player.overdrive > 0 &&
+          player.route != null &&
+          level == Player.maxWeaponLevel
+      ? kOverdrivePatterns[player.route]![(player.overdrive - 1).clamp(
+          0,
+          Player.maxOverdrive - 1,
+        )]
+      : kPlayerWeaponPatterns[level];
+  for (final shot in pattern) {
     out.add(
       Bullet(
         x: player.x + shot.offsetX,
@@ -124,3 +140,71 @@ void appendWingmanShots(Wingman wingman, List<Bullet> out) {
     ),
   );
 }
+
+const int kMaxPierce = 2;
+const _kLevel6Needles = [
+  PlayerShot.needle(-14, -0.13),
+  PlayerShot.needle(14, 0.13),
+  PlayerShot.needle(-18, -0.28),
+  PlayerShot.needle(18, 0.28),
+  PlayerShot.needle(-21, -0.43),
+  PlayerShot.needle(21, 0.43),
+];
+const _kLevel6Shots = [
+  PlayerShot.lance(-9, damage: 1),
+  PlayerShot.nova(0),
+  PlayerShot.lance(9, damage: 1),
+  ..._kLevel6Needles,
+];
+const Map<WeaponRoute, List<List<PlayerShot>>> kOverdrivePatterns = {
+  WeaponRoute.fan: [
+    [
+      ..._kLevel6Shots,
+      PlayerShot.fan(-23, -0.58),
+      PlayerShot.fan(23, 0.58),
+      PlayerShot.fan(-27, -0.76),
+      PlayerShot.fan(27, 0.76),
+    ],
+    [
+      ..._kLevel6Shots,
+      PlayerShot.fan(-23, -0.58, pierce: 1),
+      PlayerShot.fan(23, 0.58, pierce: 1),
+      PlayerShot.fan(-27, -0.76, pierce: 1),
+      PlayerShot.fan(27, 0.76, pierce: 1),
+      PlayerShot.fan(-31, -0.94, pierce: 1),
+      PlayerShot.fan(31, 0.94, pierce: 1),
+    ],
+  ],
+  WeaponRoute.pierce: [
+    [
+      PlayerShot.rail(-9),
+      PlayerShot.rail(0, damage: 3, radius: 4.2),
+      PlayerShot.rail(9),
+      ..._kLevel6Needles,
+    ],
+    [
+      PlayerShot.rail(-9, damage: 2),
+      PlayerShot.rail(0, damage: 3, radius: 4.2),
+      PlayerShot.rail(9, damage: 2),
+      ..._kLevel6Needles,
+    ],
+  ],
+  WeaponRoute.focus: [
+    [
+      PlayerShot.lance(-9, damage: 1),
+      PlayerShot.nova(0),
+      PlayerShot.lance(9, damage: 1),
+      PlayerShot.focus(-20, 0.0666, damage: 1.5),
+      PlayerShot.focus(20, -0.0666, damage: 1.5),
+    ],
+    [
+      PlayerShot.lance(-9, damage: 1),
+      PlayerShot.nova(0),
+      PlayerShot.lance(9, damage: 1),
+      PlayerShot.focus(-20, 0.0666, damage: 1.5),
+      PlayerShot.focus(20, -0.0666, damage: 1.5),
+      PlayerShot.focus(-10, 0.0333),
+      PlayerShot.focus(10, -0.0333),
+    ],
+  ],
+};

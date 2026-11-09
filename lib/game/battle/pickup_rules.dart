@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'battle_tuning.dart';
 import 'battle_types.dart';
 
@@ -27,8 +29,32 @@ PickupOutcome applyPickup(
   PowerUpKind kind,
   Player player, {
   required int multiplier,
+  WeaponRoute? route,
 }) {
   switch (kind) {
+    case PowerUpKind.core:
+      if (player.weaponLevel < Player.maxWeaponLevel) {
+        return applyPickup(PowerUpKind.weapon, player, multiplier: multiplier);
+      }
+      final chosen = route ?? WeaponRoute.fan;
+      final spec = kWeaponRoutes[chosen]!;
+      if (player.overdrive > 0 && player.route != chosen) {
+        player.route = chosen;
+        player.overdrive = math.max(1, player.overdrive - 1);
+        return PickupOutcome(text: '转向 ${spec.label}', color: spec.argb);
+      }
+      if (player.overdrive == Player.maxOverdrive) {
+        return const PickupOutcome(
+          text: '+$kCoreCapScore',
+          score: kCoreCapScore,
+        );
+      }
+      player.route = chosen;
+      player.overdrive++;
+      return PickupOutcome(
+        text: '${spec.label}进化 ${player.overdrive == 1 ? 'Ⅰ' : 'Ⅱ'}',
+        color: spec.argb,
+      );
     case PowerUpKind.weapon:
       if (player.weaponLevel < Player.maxWeaponLevel) {
         player.weaponLevel++;
@@ -59,8 +85,8 @@ PickupOutcome applyPickup(
     case PowerUpKind.wingman:
       if (player.wingmen < Player.maxWingmen) {
         player.wingmen++;
-        return const PickupOutcome(
-          text: '僚机就位',
+        return PickupOutcome(
+          text: player.wingmen == Player.maxWingmen ? '护卫卫星就位' : '僚机就位',
           color: 0xFF9BFFEA,
           spawnWingman: true,
         );
@@ -75,6 +101,31 @@ PickupOutcome applyPickup(
 /// 掉落账本：统一维护通用补给与炸弹保底。
 class DropLedger {
   int pity = 0, bombPity = 0, eliteKills = 0;
+
+  /// 距上次核心掉落的非 Boss 击破数；新局立即就绪。
+  int coreKills = kCoreCooldownKills;
+
+  void clearRun() {
+    reset();
+    coreKills = kCoreCooldownKills;
+  }
+
+  /// 随机池不含核心；满级武器掉落在波次和击破冷却均满足时转化。
+  PowerUpKind resolveDrop(
+    PowerUpKind kind,
+    Player player, {
+    required int wave,
+  }) {
+    if (kind == PowerUpKind.weapon &&
+        wave >= kOverdriveFromWave &&
+        player.weaponLevel == Player.maxWeaponLevel &&
+        player.overdrive < Player.maxOverdrive &&
+        coreKills >= kCoreCooldownKills) {
+      coreKills = 0;
+      return PowerUpKind.core;
+    }
+    return kind;
+  }
 
   void reset() {
     pity = 0;
@@ -91,6 +142,7 @@ class DropLedger {
     required double chanceRoll,
     required double kindRoll,
   }) {
+    if (coreKills < kCoreCooldownKills) coreKills++;
     bombPity++;
     if (isEliteClass(kind) && eliteKills < kEliteBombEvery) eliteKills++;
     final bombLimit = player.bombs == 0
@@ -111,23 +163,47 @@ class DropLedger {
           : powerUpKindForRoll(kindRoll);
       pity = 0;
       if (result == PowerUpKind.bomb) reset();
-      return result;
+      return resolveDrop(result, player, wave: wave);
     }
     pity++;
     return null;
   }
 
   /// 从左到右按需补给、保证炸弹、随机补给，并结清账本。
-  List<PowerUpKind> bossDrops(Player player, double kindRoll) {
+  List<PowerUpKind> bossDrops(
+    Player player,
+    double kindRoll, {
+    int wave = kOverdriveFromWave,
+  }) {
     reset();
+    final left = player.weaponLevel < 5
+        ? PowerUpKind.weapon
+        : player.wingmen < 2
+        ? PowerUpKind.wingman
+        : player.weaponLevel < Player.maxWeaponLevel
+        ? PowerUpKind.weapon
+        : wave >= kOverdriveFromWave && player.overdrive == 0
+        ? PowerUpKind.core
+        : player.wingmen < Player.maxWingmen
+        ? PowerUpKind.wingman
+        : wave >= kOverdriveFromWave && player.overdrive < Player.maxOverdrive
+        ? PowerUpKind.core
+        : PowerUpKind.shield;
+    if (left == PowerUpKind.core) coreKills = 0;
     return [
-      player.weaponLevel < 5
-          ? PowerUpKind.weapon
-          : player.wingmen < Player.maxWingmen
-          ? PowerUpKind.wingman
-          : PowerUpKind.shield,
+      left,
       player.bombs < Player.maxBombs ? PowerUpKind.bomb : PowerUpKind.shield,
-      powerUpKindForRoll(kindRoll),
+      resolveDrop(powerUpKindForRoll(kindRoll), player, wave: wave),
     ];
+  }
+}
+
+/// 受伤先降过载，再降基础火力；僚机数量与状态保持。
+void applyHitPenalty(Player player) {
+  if (player.overdrive > 0) {
+    player.overdrive = math.max(0, player.overdrive - kWeaponLossPerHit);
+    if (player.overdrive == 0) player.route = null;
+  } else {
+    player.weaponLevel = math.max(1, player.weaponLevel - kWeaponLossPerHit);
   }
 }

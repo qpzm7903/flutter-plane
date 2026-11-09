@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../game/battle/battle_types.dart';
+import '../../game/battle/battle_tuning.dart';
 import '../../theme/app_theme.dart';
 
 /// HUD 状态条目：同一份数据同时供紧凑横条与宽屏面板渲染。
@@ -43,10 +44,16 @@ List<HudStat> hudStatsFor(Player player) => [
   ),
   HudStat(
     icon: Icons.bolt_rounded,
-    color: const Color(0xFF9BE8FF),
+    color: player.overdrive > 0
+        ? Color(kWeaponRoutes[player.route]!.argb)
+        : const Color(0xFF9BE8FF),
     label: '火力',
-    shortValue: '${player.weaponLevel}',
-    fullValue: '${player.weaponLevel} 级',
+    shortValue: player.overdrive > 0
+        ? '${player.fireTier}${kWeaponRoutes[player.route]!.glyph}'
+        : '${player.weaponLevel}',
+    fullValue: player.overdrive > 0
+        ? '${player.fireTier} 级 · ${kWeaponRoutes[player.route]!.label}'
+        : '${player.weaponLevel} 级',
     stripIconSize: 15,
   ),
   if (player.wingmen > 0)
@@ -66,3 +73,7 @@ List<HudStat> hudStatsFor(Player player) => [
       fullValue: '${player.rapid.ceil()} 秒',
     ),
 ];
+
+String firepowerLabel(Player p) => p.overdrive > 0
+    ? '火力 ${p.fireTier} · ${kWeaponRoutes[p.route]!.label}'
+    : '火力 ${p.weaponLevel}';

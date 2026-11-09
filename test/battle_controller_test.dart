@@ -30,6 +30,229 @@ void advance(
 }
 
 void main() {
+  group('v0.6 成长与护卫卫星', () {
+    BattleController arena() {
+      final c = buildController();
+      c.player.fireCooldown = 100;
+      addTearDown(c.dispose);
+      return c;
+    }
+
+    void collect(BattleController c, PowerUpKind kind, {double age = 0}) {
+      c.powerUps.add(
+        PowerUp(x: c.player.x, y: c.player.y, kind: kind)..age = age,
+      );
+      c.update(0.001);
+    }
+
+    Wingman guard(BattleController c) {
+      for (var n = 0; n < 3; n++) {
+        collect(c, PowerUpKind.wingman);
+      }
+      c.playerBullets.clear();
+      for (final wing in c.wingmen) {
+        wing.cooldown = 100;
+      }
+      return c.wingmen.last;
+    }
+
+    Bullet enemyShot(BattleController c, double y, {double vy = 0}) {
+      final bullet = Bullet(
+        x: c.player.x,
+        y: y,
+        vx: 0,
+        vy: vy,
+        radius: 3,
+        damage: 1,
+        fromPlayer: false,
+      );
+      c.enemyBullets.add(bullet);
+      return bullet;
+    }
+
+    for (final route in WeaponRoute.values) {
+      test('拾取年龄选择 $route，提示与路线颜色一致', () {
+        final c = arena();
+        c.player.weaponLevel = 6;
+        collect(c, PowerUpKind.core, age: route.index * kCoreCycleSeconds);
+        expect(c.player.route, route);
+        expect(c.player.overdrive, 1);
+        expect(c.popups.last.text, '${kWeaponRoutes[route]!.label}进化 Ⅰ');
+        expect(c.popups.last.color, kWeaponRoutes[route]!.argb);
+      });
+    }
+    test('护盾保护过载，受伤先降阶且保留卫星', () {
+      final c = arena(), g = guard(c);
+      c.player
+        ..weaponLevel = 6
+        ..route = WeaponRoute.focus
+        ..overdrive = 2
+        ..shield = 10
+        ..invuln = 0;
+      enemyShot(c, c.player.y);
+      c.update(0.001);
+      expect(c.player.overdrive, 2);
+      expect(c.player.shield, 0);
+      c.player.invuln = 0;
+      enemyShot(c, c.player.y);
+      c.update(0.001);
+      expect(c.player.overdrive, 1);
+      expect(c.player.weaponLevel, 6);
+      expect(c.wingmen.last, same(g));
+    });
+    test('第三位在机头前 34，不发射子弹', () {
+      final c = arena(), g = guard(c);
+      expect(g.role, WingmanRole.guard);
+      expect(g.side, 0);
+      expect(g.x, c.player.x);
+      expect(g.y, c.player.y - kGuardOffsetY);
+      c.update(0.1);
+      expect(c.playerBullets, isEmpty);
+      expect(g.energy, kGuardMaxEnergy);
+    });
+    test('十二弹耗尽能量，过热不吸收，六秒后恢复半管', () {
+      final c = arena(), g = guard(c);
+      final lives = c.player.lives;
+      for (var n = 0; n < 12; n++) {
+        enemyShot(c, g.y);
+      }
+      c.update(0.001);
+      expect(c.enemyBullets.every((b) => b.dead), isTrue);
+      expect(g.energy, 0);
+      expect(g.overheat, kGuardOverheat);
+      expect(c.player.lives, lives);
+      final through = enemyShot(c, g.y);
+      c.update(0.001);
+      expect(through.dead, isFalse);
+      c.enemyBullets.clear();
+      // 保留敌机以防波次推进；小步推进保持真实战斗循环。
+      for (var n = 0; n < 6000; n++) {
+        c.update(0.001);
+      }
+      expect(g.overheat, 0);
+      expect(g.energy, closeTo(kGuardRestoreEnergy, 0.002));
+      enemyShot(c, g.y);
+      c.update(0.001);
+      expect(g.energy, closeTo(kGuardRestoreEnergy - 1, 0.003));
+    });
+    test('就绪回复每秒 0.6，封顶 12', () {
+      final c = arena(), g = guard(c);
+      g.energy = 5;
+      c.update(0.1);
+      expect(g.energy, closeTo(5.06, 1e-8));
+      g.energy = 11.99;
+      c.update(0.1);
+      expect(g.energy, 12);
+    });
+    test('同帧卫星先于机身接弹', () {
+      final c = arena(), g = guard(c);
+      c.player.invuln = 0;
+      final lives = c.player.lives;
+      // 扫掠从玩家下方经过玩家，终点在卫星范围。
+      enemyShot(c, c.player.y + 10, vy: -400);
+      c.update(0.1);
+      expect(c.player.lives, lives);
+      expect(g.energy, 11);
+    });
+    test('HUD 指纹跟踪路线与过载，卫星能量不触发刷新', () {
+      final c = arena(), g = guard(c);
+      c.player.weaponLevel = 6;
+      c.update(kBattleHintDuration + 0.1);
+      var notifications = 0;
+      c.addListener(() => notifications++);
+      c.player
+        ..overdrive = 1
+        ..route = WeaponRoute.fan;
+      c.update(kHudRefreshInterval + 0.001);
+      expect(notifications, 1);
+      c.player.route = WeaponRoute.focus;
+      c.update(kHudRefreshInterval + 0.001);
+      expect(notifications, 2);
+      c.player.overdrive = 2;
+      c.update(kHudRefreshInterval + 0.001);
+      expect(notifications, 3);
+      g.energy = 5;
+      c.update(kHudRefreshInterval + 0.001);
+      expect(notifications, 3);
+    });
+    test('重新开始清空过载与卫星', () {
+      final c = arena();
+      guard(c);
+      c.player
+        ..weaponLevel = 6
+        ..overdrive = 2
+        ..route = WeaponRoute.fan;
+      c.start();
+      expect(c.player.overdrive, 0);
+      expect(c.player.route, isNull);
+      expect(c.player.wingmen, 0);
+      expect(c.wingmen, isEmpty);
+    });
+    for (final modifier in [null, ChallengeModifier.scarcity]) {
+      test('普通/补给管制 Boss 核心链一致：$modifier', () {
+        final c = BattleController(
+          size: const Size(400, 700),
+          seed: 42,
+          challenge: modifier == null
+              ? null
+              : DailyChallenge(
+                  dateKey: '20261108',
+                  seed: 42,
+                  modifier: modifier,
+                ),
+        )..start();
+        addTearDown(c.dispose);
+        c.player
+          ..weaponLevel = 6
+          ..wingmen = 2;
+        c.wave = 8;
+        c.enemies.add(
+          Enemy(
+            kind: EnemyKind.boss,
+            pattern: EnemyPattern.hover,
+            x: 200,
+            y: 100,
+            difficulty: 1,
+          )..hp = 1,
+        );
+        c.useBomb();
+        expect(
+          c.powerUps.where((p) => p.kind == PowerUpKind.core),
+          hasLength(1),
+        );
+      });
+    }
+    test('军械库开局三级且前四波无核心或过载', () {
+      final c = BattleController(
+        size: const Size(400, 700),
+        seed: 42,
+        challenge: const DailyChallenge(
+          dateKey: '20261108',
+          seed: 42,
+          modifier: ChallengeModifier.arsenal,
+        ),
+      )..start();
+      addTearDown(c.dispose);
+      expect(c.player.weaponLevel, 3);
+      for (var wave = 1; wave <= 4; wave++) {
+        c.wave = wave;
+        c.player.bombs = 3;
+        c.enemies.add(
+          Enemy(
+            kind: wave == 4 ? EnemyKind.boss : EnemyKind.scout,
+            pattern: EnemyPattern.straight,
+            x: 200,
+            y: 100,
+            difficulty: 1,
+          )..hp = 1,
+        );
+        c.useBomb();
+        expect(c.powerUps.any((p) => p.kind == PowerUpKind.core), isFalse);
+        expect(c.player.overdrive, 0);
+      }
+    });
+  });
+
   group('穿透碰撞', () {
     BattleController arena() {
       final c = buildController();
@@ -77,6 +300,29 @@ void main() {
       return b;
     }
 
+    test('贯穿二次一帧命中三架后消失', () {
+      final c = arena();
+      final targets = [enemy(c, 185), enemy(c, 150), enemy(c, 115)];
+      final s = shot(c, pierce: 2);
+      c.update(0.2);
+      expect(targets.map((e) => e.hp), [8, 8, 8]);
+      expect(s.dead, isTrue);
+    });
+    test('贯穿二次跨帧记忆前两个目标，第三架后消失', () {
+      final c = arena(), a = enemy(c, 200), b = enemy(c, 200);
+      final s = shot(c, pierce: 2, vy: 0);
+      for (var n = 0; n < 4; n++) {
+        c.update(0.001);
+      }
+      expect([a.hp, b.hp], [8, 8]);
+      expect(s.prevHit, same(a));
+      expect(s.lastHit, same(b));
+      final boss = enemy(c, 200);
+      final hp = boss.hp;
+      c.update(0.001);
+      expect(boss.hp, hp - 2);
+      expect(s.dead, isTrue);
+    });
     test('一帧扫过两架敌机，两架受伤后消失', () {
       final c = arena(), dt = 0.1;
       final a = enemy(c, 185), b = enemy(c, 150), s = shot(c);
@@ -94,11 +340,11 @@ void main() {
       expect(s.lastHit, same(a));
       expect(s.dead, isFalse);
     });
-    test('命中 Boss 即消失且不伤后方敌机', () {
+    test('贯穿二次命中 Boss 即消失且不伤后方敌机', () {
       final c = arena(),
           a = enemy(c, 92, kind: EnemyKind.boss),
           b = enemy(c, 92),
-          s = shot(c, y: 92, vy: 0);
+          s = shot(c, y: 92, vy: 0, pierce: 2);
       c.update(0.01);
       final hp = a.hp;
       c.update(0.01);
@@ -190,6 +436,10 @@ void main() {
       addTearDown(a.dispose);
       addTearDown(b.dispose);
       List<List<Object>> script(BattleController c) {
+        c.wave = 8;
+        c.player
+          ..weaponLevel = 6
+          ..wingmen = 2;
         final out = <List<Object>>[];
         for (var i = 0; i < 60; i++) {
           kill(c, EnemyKind.values[i % 7]);
@@ -200,6 +450,7 @@ void main() {
       }
 
       final expected = script(a);
+      expect(expected.expand((items) => items), contains(PowerUpKind.core));
       expect(script(b), expected);
     });
     test('普通与补给管制下第四次精英击破均保证炸弹', () {
@@ -240,6 +491,7 @@ void main() {
       expect(c.wingmen.map((w) => w.role), [
         WingmanRole.gale,
         WingmanRole.heavy,
+        WingmanRole.guard,
       ]);
       expect(c.wingmen[1].cooldown, greaterThan(0));
     });
@@ -699,10 +951,10 @@ void main() {
       expect(controller.popups.any((popup) => popup.text == '僚机就位'), isTrue);
     });
 
-    test('最多两架僚机，满编后补给折算分数', () {
+    test('最多三架僚机，满编后补给折算分数', () {
       final controller = buildController();
       addTearDown(controller.dispose);
-      for (var i = 0; i < 2; i++) {
+      for (var i = 0; i < Player.maxWingmen; i++) {
         controller.powerUps.add(
           PowerUp(
             x: controller.player.x,
@@ -713,7 +965,7 @@ void main() {
         advance(controller, 0.02);
       }
       expect(controller.player.wingmen, Player.maxWingmen);
-      expect(controller.wingmen.map((wing) => wing.side), [-1, 1]);
+      expect(controller.wingmen.map((wing) => wing.side), [-1, 1, 0]);
 
       controller.powerUps.add(
         PowerUp(

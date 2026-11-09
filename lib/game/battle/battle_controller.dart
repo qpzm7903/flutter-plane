@@ -161,7 +161,7 @@ class BattleController extends ChangeNotifier {
     _lastHudSignature = 0;
     _trailTimer = 0;
     _shootCooldown = 0;
-    _drops.reset();
+    _drops.clearRun();
     _moveAxis = Offset.zero;
     _bossHp.value = 0;
     _effects.resetStars(_size);
@@ -312,6 +312,8 @@ class BattleController extends ChangeNotifier {
     player.lives,
     player.bombs,
     player.weaponLevel,
+    player.overdrive,
+    player.route?.index,
     player.rapid > 0 ? player.rapid.ceil() : 0,
     player.wingmen,
     combo,
@@ -338,7 +340,11 @@ class BattleController extends ChangeNotifier {
 
     p.fireCooldown -= dt;
     if (p.fireCooldown <= 0) {
-      p.fireCooldown = playerFireInterval(p.weaponLevel, rapid: p.rapid > 0);
+      p.fireCooldown = playerFireInterval(
+        p.weaponLevel,
+        rapid: p.rapid > 0,
+        route: p.overdrive > 0 ? p.route : null,
+      );
       appendPlayerShots(p, playerBullets);
       if (_shootCooldown <= 0) {
         _shootCooldown = kShootSoundInterval;
@@ -358,10 +364,22 @@ class BattleController extends ChangeNotifier {
   void _updateWingmen(double dt) {
     for (final wing in wingmen) {
       final targetX = player.x + wing.side * kWingmanOffsetX;
-      final targetY = player.y + kWingmanOffsetY;
+      final targetY = player.y + wingmanOffsetY(wing.role);
       final follow = math.min(1, dt * kWingmanFollowLerp);
       wing.x += (targetX - wing.x) * follow;
       wing.y += (targetY - wing.y) * follow;
+      if (wing.role == WingmanRole.guard) {
+        if (wing.overheat > 0) {
+          wing.overheat = math.max(0, wing.overheat - dt);
+          if (wing.overheat == 0) wing.energy = kGuardRestoreEnergy;
+        } else {
+          wing.energy = math.min(
+            kGuardMaxEnergy,
+            wing.energy + kGuardRegenPerSec * dt,
+          );
+        }
+        continue;
+      }
       wing.cooldown -= dt;
       if (wing.cooldown > 0) continue;
       wing.cooldown = kWingmanSpecs[wing.role]!.fireInterval;
@@ -510,7 +528,7 @@ class BattleController extends ChangeNotifier {
     if (enemy.isBoss) {
       flash = 0.5;
       _emit(BattleEvent.bigExplosion);
-      final drops = _drops.bossDrops(player, _rng.nextDouble());
+      final drops = _drops.bossDrops(player, _rng.nextDouble(), wave: wave);
       for (var i = 0; i < drops.length; i++) {
         _dropAt(enemy.x + (i - 1) * kBossDropOffsetX, enemy.y, drops[i]);
       }
@@ -588,7 +606,12 @@ class BattleController extends ChangeNotifier {
   void _collectPowerUp(PowerUp item) {
     item.dead = true;
     final position = Offset(item.x, item.y);
-    final outcome = applyPickup(item.kind, player, multiplier: multiplier);
+    final outcome = applyPickup(
+      item.kind,
+      player,
+      multiplier: multiplier,
+      route: coreRouteAt(item.age),
+    );
     score += outcome.score;
     _effects.addPopup(
       ScorePopup(
@@ -600,11 +623,16 @@ class BattleController extends ChangeNotifier {
     );
     if (outcome.spawnWingman) {
       final wing = Wingman(
-        side: player.wingmen.isOdd ? -1 : 1,
+        side: wingmanSideFor(player.wingmen),
         x: player.x,
         y: player.y,
       );
-      wing.cooldown = kWingmanSpecs[wing.role]!.initialCooldown;
+      if (wing.role == WingmanRole.guard) {
+        wing.energy = kGuardMaxEnergy;
+        wing.y = player.y - kGuardOffsetY;
+      } else {
+        wing.cooldown = kWingmanSpecs[wing.role]!.initialCooldown;
+      }
       wingmen.add(wing);
     }
     _effects.burst(
@@ -622,7 +650,10 @@ class BattleController extends ChangeNotifier {
 
   void _collide(double dt) {
     _collidePlayerShots(dt);
-    if (player.alive) _collideEnemyShots(dt);
+    if (player.alive) {
+      _collideGuard();
+      _collideEnemyShots(dt);
+    }
     _collideBodies();
     _collidePowerUps();
   }
@@ -652,7 +683,11 @@ class BattleController extends ChangeNotifier {
       final fromX = bullet.x - bullet.vx * dt;
       final fromY = bullet.y - bullet.vy * dt;
       for (final enemy in enemies) {
-        if (enemy.dead || identical(enemy, bullet.lastHit)) continue;
+        if (enemy.dead ||
+            identical(enemy, bullet.lastHit) ||
+            identical(enemy, bullet.prevHit)) {
+          continue;
+        }
         final reach = enemy.radius + bullet.radius;
         if (!sweepHitsCircleXY(
           centerX: enemy.x,
@@ -669,11 +704,42 @@ class BattleController extends ChangeNotifier {
         _effects.spark(Offset(bullet.x, bullet.y), 0xFFB7F4FF);
         if (bullet.pierce > 0 && !enemy.isBoss) {
           bullet.pierce--;
+          bullet.prevHit = bullet.lastHit;
           bullet.lastHit = enemy;
           continue;
         }
         bullet.dead = true;
         break;
+      }
+    }
+  }
+
+  void _collideGuard() {
+    for (final guard in wingmen) {
+      if (guard.role != WingmanRole.guard ||
+          guard.overheat > 0 ||
+          guard.energy <= 0) {
+        continue;
+      }
+      for (final bullet in enemyBullets) {
+        if (bullet.dead ||
+            !circlesOverlapXY(
+              bullet.x,
+              bullet.y,
+              bullet.radius,
+              guard.x,
+              guard.y,
+              kGuardRadius,
+            )) {
+          continue;
+        }
+        bullet.dead = true;
+        _effects.spark(Offset(bullet.x, bullet.y), 0xFF9BFFEA);
+        guard.energy -= 1;
+        if (guard.energy <= 0) {
+          guard.overheat = kGuardOverheat;
+          break;
+        }
       }
     }
   }
@@ -752,7 +818,7 @@ class BattleController extends ChangeNotifier {
       return;
     }
     player.lives--;
-    player.weaponLevel = math.max(1, player.weaponLevel - kWeaponLossPerHit);
+    applyHitPenalty(player);
     player.invuln = kHitInvuln;
     shake = math.max(shake, 14);
     flash = math.max(flash, 0.38);

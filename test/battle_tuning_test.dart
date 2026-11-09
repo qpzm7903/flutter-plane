@@ -86,7 +86,10 @@ void main() {
 
     test('全部补给类型都能掉落', () {
       final kinds = {for (var i = 0; i < 100; i++) powerUpKindForRoll(i / 100)};
-      expect(kinds, containsAll(PowerUpKind.values));
+      expect(
+        kinds,
+        containsAll(PowerUpKind.values.where((k) => k != PowerUpKind.core)),
+      );
     });
   });
 

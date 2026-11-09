@@ -34,3 +34,13 @@ final Path wingmanHeavyHullPath = Path()
   ..close()
   ..addRect(const Rect.fromLTWH(-7, -12, 2.5, 12))
   ..addRect(const Rect.fromLTWH(4.5, -12, 2.5, 12));
+
+/// 护卫卫星：半径 6 的六边形，渲染时复用。
+final Path wingmanGuardHullPath = Path()
+  ..moveTo(0, -6)
+  ..lineTo(5.196, -3)
+  ..lineTo(5.196, 3)
+  ..lineTo(0, 6)
+  ..lineTo(-5.196, 3)
+  ..lineTo(-5.196, -3)
+  ..close();

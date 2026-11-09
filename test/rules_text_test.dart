@@ -6,6 +6,19 @@ import 'package:sky_fighter/game/battle/boss_catalog.dart';
 import 'package:sky_fighter/game/battle/rules_text.dart';
 
 void main() {
+  test('核心、卫星与路线说明来自统一配置', () {
+    final text = supplyHints().join();
+    expect(text, contains('进化核心'));
+    expect(text, contains('${Player.maxOverdrive} 阶'));
+    expect(text, contains('第 $kOverdriveFromWave 波'));
+    expect(text, contains('护卫卫星'));
+    expect(text, contains('${Player.maxWingmen} 架'));
+    for (final spec in kWeaponRoutes.values) {
+      expect(routeHints(), contains('${spec.label}：${spec.blurb}'));
+    }
+    expect(routeHints().last, contains('护盾可保护过载'));
+  });
+
   test('穿透与精英炸弹说明由规则推导', () {
     final text = supplyHints().join();
     expect(text, contains('${firstPiercingLevel()} 级起'));

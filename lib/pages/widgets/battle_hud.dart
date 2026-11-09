@@ -268,7 +268,7 @@ class BattleHud extends StatelessWidget {
         if (column) const Spacer() else const SizedBox(width: 10),
         Text(
           controller.challenge == null
-              ? '火力 ${controller.player.weaponLevel}'
+              ? firepowerLabel(controller.player)
               : '挑战 · ${controller.challengeModifier.label}',
           style: TextStyle(
             fontSize: compact ? 10.5 : 11,

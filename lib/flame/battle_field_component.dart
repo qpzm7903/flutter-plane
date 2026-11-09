@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../game/battle/battle_controller.dart';
 import '../game/battle/battle_types.dart';
+import '../game/battle/battle_tuning.dart';
 import '../game/logic_rate.dart';
 import '../services/sound_service.dart';
 import 'battle_visuals.dart';
@@ -15,6 +16,7 @@ import 'draw_batches.dart';
 ///
 /// 所有图形都是程序化矢量绘制，仓库不存放任何图片、字体或音频资源。
 class BattleFieldComponent extends PositionComponent {
+  static const _guardEnergyRect = Rect.fromLTWH(-11, -11, 22, 22);
   BattleFieldComponent({
     required this.controller,
     required this.logicRate,
@@ -249,6 +251,33 @@ class BattleFieldComponent extends PositionComponent {
   void _drawWingmen(Canvas canvas) {
     if (controller.wingmen.isEmpty || !controller.player.alive) return;
     for (final wing in controller.wingmen) {
+      if (wing.role == WingmanRole.guard) {
+        canvas.save();
+        canvas.translate(wing.x, wing.y);
+        final hot = wing.overheat > 0;
+        _fill.color = hot ? const Color(0xFF303640) : kGuardVisual.fill;
+        canvas.drawPath(kGuardVisual.path, _fill);
+        _stroke
+          ..color = hot ? const Color(0xFF707780) : kGuardVisual.trim
+          ..strokeWidth = 1.2;
+        canvas.drawPath(kGuardVisual.path, _stroke);
+        _stroke.color = hot
+            ? const Color(0xFF707780)
+            : wing.energy < 4
+            ? const Color(0xFFFFB347)
+            : kGuardVisual.trim;
+        if (!hot || (controller.elapsed * 8).floor().isEven) {
+          canvas.drawArc(
+            _guardEnergyRect,
+            -math.pi / 2,
+            hot ? math.pi : wing.energy / kGuardMaxEnergy * math.pi * 2,
+            false,
+            _stroke,
+          );
+        }
+        canvas.restore();
+        continue;
+      }
       final visual = kWingmanVisuals[wing.role]!;
       canvas.save();
       canvas.translate(wing.x, wing.y);
@@ -303,10 +332,16 @@ class BattleFieldComponent extends PositionComponent {
     _fill.color = kPlayerHull;
     canvas.drawPath(path, _fill);
     _stroke
-      ..color = kPlayerTrim
+      ..color = player.overdrive > 0 && player.route != null
+          ? Color(kWeaponRoutes[player.route]!.argb)
+          : kPlayerTrim
       ..strokeWidth = 1.5;
     canvas.drawPath(path, _stroke);
 
+    if (player.overdrive == 2) {
+      canvas.drawLine(const Offset(-13, 5), const Offset(-6, 3), _stroke);
+      canvas.drawLine(const Offset(6, 3), const Offset(13, 5), _stroke);
+    }
     // 座舱与高光
     _fill.color = const Color(0xFFDDF7FF);
     canvas.drawOval(
@@ -473,7 +508,10 @@ class BattleFieldComponent extends PositionComponent {
     for (final item in controller.powerUps) {
       if (item.x < -24 || item.x > world.width + 24) continue;
       if (item.y < -24 || item.y > world.height + 24) continue;
-      final argb = kPowerUpArgb[item.kind]!;
+      final route = item.kind == PowerUpKind.core
+          ? kWeaponRoutes[coreRouteAt(item.age)]
+          : null;
+      final argb = route?.argb ?? kPowerUpArgb[item.kind]!;
       canvas.save();
       canvas.translate(item.x, item.y);
       canvas.rotate(item.age * 1.8);
@@ -485,9 +523,13 @@ class BattleFieldComponent extends PositionComponent {
         ..color = _fadeColor(argb, 1)
         ..strokeWidth = 1.8;
       canvas.drawRRect(_powerUpBox, _stroke);
+      if (route != null) {
+        _stroke.strokeWidth = 1.4;
+        canvas.drawCircle(Offset.zero, 19, _stroke);
+      }
       canvas.restore();
 
-      final label = kPowerUpLabels[item.kind]![0];
+      final label = route?.glyph ?? kPowerUpLabels[item.kind]![0];
       final painter = _text(
         label,
         size: 11,

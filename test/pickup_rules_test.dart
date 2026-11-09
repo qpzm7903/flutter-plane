@@ -8,6 +8,234 @@ import 'package:sky_fighter/game/battle/pickup_rules.dart';
 Player buildPlayer() => Player(x: 200, y: 600);
 
 void main() {
+  group('进化核心与成长不变量', () {
+    for (final route in WeaponRoute.values) {
+      test('$route 核心全状态表与转向代价', () {
+        final p = buildPlayer()..weaponLevel = 5;
+        expect(
+          applyPickup(PowerUpKind.core, p, multiplier: 1, route: route).text,
+          '火力 6 级',
+        );
+        expect(p.route, isNull);
+        final first = applyPickup(
+          PowerUpKind.core,
+          p,
+          multiplier: 1,
+          route: route,
+        );
+        expect([p.overdrive, p.route], [1, route]);
+        expect(first.text, '${kWeaponRoutes[route]!.label}进化 Ⅰ');
+        expect(first.color, kWeaponRoutes[route]!.argb);
+        applyPickup(PowerUpKind.core, p, multiplier: 1, route: route);
+        expect(p.overdrive, 2);
+        expect(
+          applyPickup(PowerUpKind.core, p, multiplier: 4, route: route).score,
+          400,
+        );
+        final other = WeaponRoute.values[(route.index + 1) % 3];
+        expect(
+          applyPickup(PowerUpKind.core, p, multiplier: 1, route: other).text,
+          '转向 ${kWeaponRoutes[other]!.label}',
+        );
+        expect([p.overdrive, p.route], [1, other]);
+        applyPickup(PowerUpKind.core, p, multiplier: 1, route: route);
+        expect([p.overdrive, p.route], [1, route]);
+      });
+    }
+    test('受伤按 L8 → L7 → L6 → L5，最低 1，保留僚机', () {
+      final p = buildPlayer()
+        ..weaponLevel = 6
+        ..overdrive = 2
+        ..route = WeaponRoute.focus
+        ..wingmen = 3;
+      for (final tier in [7, 6, 5, 4, 3, 2, 1, 1]) {
+        applyHitPenalty(p);
+        expect(p.fireTier, tier);
+        expect(p.wingmen, 3);
+        if (p.overdrive == 0) expect(p.route, isNull);
+      }
+    });
+    test('随机拾取与受伤序列维持成长不变量', () {
+      final rng = math.Random(600), p = buildPlayer();
+      for (var i = 0; i < 2000; i++) {
+        if (rng.nextInt(5) == 0) {
+          applyHitPenalty(p);
+        } else {
+          applyPickup(
+            PowerUpKind.values[rng.nextInt(PowerUpKind.values.length)],
+            p,
+            multiplier: 1,
+            route: WeaponRoute.values[rng.nextInt(3)],
+          );
+        }
+        expect(p.overdrive, inInclusiveRange(0, Player.maxOverdrive));
+        expect(p.wingmen, inInclusiveRange(0, Player.maxWingmen));
+        if (p.overdrive > 0) {
+          expect(p.weaponLevel, Player.maxWeaponLevel);
+          expect(p.route, isNotNull);
+        } else {
+          expect(p.route, isNull);
+        }
+      }
+    });
+    test('第三次僚机给卫星提示，第四次折分', () {
+      final p = buildPlayer();
+      for (var i = 0; i < 2; i++) {
+        applyPickup(PowerUpKind.wingman, p, multiplier: 1);
+      }
+      expect(applyPickup(PowerUpKind.wingman, p, multiplier: 1).text, '护卫卫星就位');
+      expect(applyPickup(PowerUpKind.wingman, p, multiplier: 1).score, 250);
+      expect(p.wingmen, 3);
+    });
+    test('核心循环、站位顺序与随机权重不变', () {
+      expect(
+        [coreRouteAt(0), coreRouteAt(0.9), coreRouteAt(1.8), coreRouteAt(2.7)],
+        [
+          WeaponRoute.fan,
+          WeaponRoute.pierce,
+          WeaponRoute.focus,
+          WeaponRoute.fan,
+        ],
+      );
+      expect([for (var n = 1; n <= 3; n++) wingmanSideFor(n)], [-1, 1, 0]);
+      expect(kPowerUpWeights.values.reduce((a, b) => a + b), 100);
+      expect(kPowerUpWeights.containsKey(PowerUpKind.core), isFalse);
+    });
+  });
+  group('核心掉落账本', () {
+    test('转化条件与三十次击破冷却', () {
+      final p = buildPlayer()..weaponLevel = 6;
+      final ledger = DropLedger();
+      for (var wave = 1; wave < 5; wave++) {
+        expect(
+          ledger.resolveDrop(PowerUpKind.weapon, p, wave: wave),
+          PowerUpKind.weapon,
+        );
+      }
+      p.weaponLevel = 5;
+      expect(
+        ledger.resolveDrop(PowerUpKind.weapon, p, wave: 5),
+        PowerUpKind.weapon,
+      );
+      p
+        ..weaponLevel = 6
+        ..overdrive = 2
+        ..route = WeaponRoute.fan;
+      expect(
+        ledger.resolveDrop(PowerUpKind.weapon, p, wave: 5),
+        PowerUpKind.weapon,
+      );
+      p
+        ..overdrive = 0
+        ..route = null;
+      expect(
+        ledger.resolveDrop(PowerUpKind.weapon, p, wave: 5),
+        PowerUpKind.core,
+      );
+      expect(ledger.coreKills, 0);
+      for (var n = 1; n <= 30; n++) {
+        final result = ledger.rollKill(
+          kind: EnemyKind.scout,
+          wave: 5,
+          player: p,
+          dropScale: 1,
+          chanceRoll: 0,
+          kindRoll: 0,
+        );
+        expect(result, n == 30 ? PowerUpKind.core : PowerUpKind.weapon);
+      }
+      expect(ledger.coreKills, 0);
+    });
+    test('炸弹/reset 保留核心计数，clearRun 设为就绪且计数封顶', () {
+      final ledger = DropLedger()..coreKills = 4;
+      ledger.reset();
+      expect(ledger.coreKills, 4);
+      ledger.rollKill(
+        kind: EnemyKind.scout,
+        wave: 5,
+        player: buildPlayer(),
+        dropScale: 1,
+        chanceRoll: 0,
+        kindRoll: 0.55,
+      );
+      expect([ledger.bombPity, ledger.eliteKills, ledger.coreKills], [0, 0, 5]);
+      ledger.clearRun();
+      expect(ledger.coreKills, kCoreCooldownKills);
+      ledger.rollKill(
+        kind: EnemyKind.scout,
+        wave: 5,
+        player: buildPlayer(),
+        dropScale: 1,
+        chanceRoll: 1,
+        kindRoll: 0,
+      );
+      expect(ledger.coreKills, kCoreCooldownKills);
+    });
+    test('Boss 七级按需链与左右核心去重', () {
+      final p = buildPlayer(), ledger = DropLedger();
+      PowerUpKind left() => ledger.bossDrops(p, 0.99, wave: 8).first;
+      expect(left(), PowerUpKind.weapon);
+      p.weaponLevel = 5;
+      expect(left(), PowerUpKind.wingman);
+      p.wingmen = 2;
+      expect(left(), PowerUpKind.weapon);
+      p.weaponLevel = 6;
+      final drops = ledger.bossDrops(p, 0, wave: 8);
+      expect(drops, [PowerUpKind.core, PowerUpKind.bomb, PowerUpKind.weapon]);
+      expect(ledger.coreKills, 0);
+      p
+        ..overdrive = 1
+        ..route = WeaponRoute.fan;
+      expect(left(), PowerUpKind.wingman);
+      p.wingmen = 3;
+      expect(left(), PowerUpKind.core);
+      p.overdrive = 2;
+      expect(left(), PowerUpKind.shield);
+      p
+        ..overdrive = 0
+        ..route = null;
+      for (var wave = 1; wave < 5; wave++) {
+        expect(
+          ledger.bossDrops(p, 0, wave: wave),
+          isNot(contains(PowerUpKind.core)),
+        );
+      }
+    });
+    test('固定种子第 5–12 波核心总数与可复现性', () {
+      List<PowerUpKind> script() {
+        final rng = math.Random(503), ledger = DropLedger();
+        final p = buildPlayer()
+          ..weaponLevel = 6
+          ..wingmen = 2;
+        final drops = <PowerUpKind>[];
+        for (var wave = 5; wave <= 12; wave++) {
+          for (var i = 0; i < 16; i++) {
+            final kind = ledger.rollKill(
+              kind: EnemyKind.scout,
+              wave: wave,
+              player: p,
+              dropScale: 1,
+              chanceRoll: rng.nextDouble(),
+              kindRoll: rng.nextDouble(),
+            );
+            if (kind != null) drops.add(kind);
+          }
+          if (wave % 4 == 0) {
+            drops.addAll(ledger.bossDrops(p, rng.nextDouble(), wave: wave));
+          }
+        }
+        return drops;
+      }
+
+      final drops = script();
+      expect(script(), drops);
+      expect(
+        drops.where((k) => k == PowerUpKind.core).length,
+        inInclusiveRange(2, 5),
+      );
+    });
+  });
+
   group('掉落账本', () {
     PowerUpKind? roll(
       DropLedger ledger,
@@ -129,6 +357,9 @@ void main() {
       expect([ledger.pity, ledger.bombPity, ledger.eliteKills], [0, 0, 0]);
       player.weaponLevel = 5;
       expect(ledger.bossDrops(player, 0).first, PowerUpKind.wingman);
+      player.weaponLevel = 6;
+      player.overdrive = 2;
+      player.route = WeaponRoute.fan;
       player.wingmen = Player.maxWingmen;
       player.bombs = Player.maxBombs;
       expect(ledger.bossDrops(player, 0), [

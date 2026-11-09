@@ -26,6 +26,38 @@ Future<void> pumpHud(WidgetTester tester, BattleController controller) async {
 }
 
 void main() {
+  testWidgets('320 dp 满状态过载 HUD 无溢出且两处火力一致', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final c = BattleController(size: const Size(400, 700))..start();
+    addTearDown(c.dispose);
+    c.player
+      ..lives = 5
+      ..bombs = 3
+      ..weaponLevel = 6
+      ..overdrive = 1
+      ..route = WeaponRoute.focus
+      ..wingmen = 3
+      ..rapid = 12;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BattleHud(
+            controller: c,
+            field: const Rect.fromLTWH(0, 0, 320, 700),
+            stage: const Size(320, 700),
+            onPause: () {},
+            onBomb: () {},
+          ),
+        ),
+      ),
+    );
+    expect(find.text('7聚'), findsOneWidget);
+    expect(find.text('火力 7 · 聚能'), findsOneWidget);
+    expect(find.text('12s'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('紧凑布局展示得分、生命与炸弹', (tester) async {
     final controller = BattleController(size: const Size(400, 820));
     addTearDown(controller.dispose);
