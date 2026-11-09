@@ -1,6 +1,6 @@
 # v0.6 玩法扩展设计：火力过载路线、进化核心与护卫卫星
 
-> 状态：设计稿（未实现）。分支 `feat/gameplay-expansion`，基线 v0.5.0（`flutter test` 282 项）。
+> 状态：已实现（v0.6.0），审查通过。分支 `feat/gameplay-expansion`，基线 v0.5.0（`flutter test` 282 项）。
 > 发布位置：用户自己的 fork（`qpzm7903/flutter-plane`），不向上游提 PR。
 > 原则：在 v0.5 的数据驱动结构上**加一条成长轴**，不重写战斗循环；数值只写在单一出处；程序化 Canvas、批绘制、对象池与两趟弹幕收集不退化。
 > 版本号：实现完成后 bump 到 `0.6.0`（`pubspec.yaml` 的 `version:`、README 版本表/下载链接/tag 示例，见 §7、§8）。**不要改 CI 签名与密钥。**
@@ -734,3 +734,15 @@ List<String> routeHints() => [
 - 绘制预算按实测收紧：15 种弹种同屏 42 次；六级+双僚机+150 单类/混色敌弹 19/23 次；散射Ⅱ+三僚机+150 单类/混色敌弹 22/26 次。双/三僚机场景 `circleCalls` 均为 4；240 颗 kind 0 保持 ≤12 次；核心三种字形缓存始终为 3。
 - `daily_challenge.dart` 零 diff；`wave_director.dart`、`enemy_weapons.dart`、`boss_catalog.dart`、`bullet_field.dart`、`battle_effects.dart`、CI/签名文件均未改动；`kPowerUpWeights` 保持原六种、合计 100。
 - `pubspec.yaml`、界面版本常量、README 下载链接与 tag 示例均为 0.6.0；未执行推送或创建 tag。
+
+### 代码审查结论（feat/gameplay-expansion）
+
+对照本文逐项审读代码与测试，未发现需要修复的 bug：
+
+- 过载选表、`prevHit` 去重、路线数值护栏与 §4.3 一致；Boss 不可穿透保持不变。
+- 核心：同路线升阶、异路线降一阶、满阶折 400 分；`resolveDrop` 要求 `wave >= 5` 且冷却满；Boss 七级链顺序与 §4.2 一致；`reset()` 不清 `coreKills`，`clearRun()` 开局就绪。
+- 卫星：`wingmanSideFor` 出生侧 -1/1/0；`_updateWingmen` 在读取 `kWingmanSpecs` 前先分流；`_collideGuard` 排在 `_collideEnemyShots` 之前；能量 12、过热 6 s、恢复 6 的状态机正确。
+- `applyHitPenalty` 先降过载（降到 0 清路线）再降火力等级，且在护盾判定之后；`daily_challenge.dart` 无 diff。
+- `PowerUpKind.core` 在标签、颜色、`applyPickup`、`supplyHints`、HUD 指纹与渲染中均已覆盖。
+
+审查未运行 `flutter analyze/test`，由协调方执行。
