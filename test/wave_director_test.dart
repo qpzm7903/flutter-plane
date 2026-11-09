@@ -3,6 +3,59 @@ import 'package:sky_fighter/game/battle/battle_types.dart';
 import 'package:sky_fighter/game/battle/wave_director.dart';
 
 void main() {
+  test('教学编队、后期加压、边界与确定性', () {
+    final a = WaveDirector(seed: 55), b = WaveDirector(seed: 55);
+    for (var wave = 1; wave <= 80; wave++) {
+      a.startNextWave();
+      b.startNextWave();
+      final aa = <SpawnRequest>[], bb = <SpawnRequest>[];
+      for (var step = 0; step < 640; step++) {
+        final ar = a.update(0.01), br = b.update(0.01);
+        expect(ar.length, br.length);
+        aa.addAll(ar);
+        bb.addAll(br);
+      }
+      expect(a.spawning, isFalse);
+      expect(b.spawning, isFalse);
+      expect(aa.length, lessThanOrEqualTo(28));
+      for (var i = 0; i < aa.length; i++) {
+        expect(aa[i].x, inInclusiveRange(34, kWorldWidth - 34));
+        expect(
+          [aa[i].kind, aa[i].x, aa[i].pattern, aa[i].phase, aa[i].variant],
+          [bb[i].kind, bb[i].x, bb[i].pattern, bb[i].phase, bb[i].variant],
+        );
+      }
+      int count(EnemyKind k) => aa.where((r) => r.kind == k).length;
+      if (wave == 1) {
+        expect(aa, hasLength(6));
+        expect(count(EnemyKind.scout), 6);
+      }
+      if (wave == 2) expect(count(EnemyKind.fighter), 1);
+      if (wave <= 3) {
+        expect(
+          aa.every(
+            (r) => [
+              EnemyKind.scout,
+              EnemyKind.fighter,
+              EnemyKind.bomber,
+            ].contains(r.kind),
+          ),
+          isTrue,
+        );
+      }
+      if (wave == 13) {
+        expect(count(EnemyKind.interceptor), 2);
+        expect(count(EnemyKind.drone), 4);
+        expect(count(EnemyKind.elite), 2);
+        expect(aa, hasLength(24));
+      }
+      if (wave == 17) {
+        expect(count(EnemyKind.fortress), 2);
+        expect(aa, hasLength(24));
+      }
+    }
+  });
+
   group('WaveDirector', () {
     test('首波在调用前保持待命', () {
       final director = WaveDirector();

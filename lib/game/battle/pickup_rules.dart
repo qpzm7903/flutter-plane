@@ -46,7 +46,7 @@ PickupOutcome applyPickup(
     case PowerUpKind.bomb:
       if (player.bombs < Player.maxBombs) {
         player.bombs++;
-        return const PickupOutcome(text: '炸弹 +1');
+        return const PickupOutcome(text: '炸弹 +1', color: 0xFFFF6B6B);
       }
       return const PickupOutcome(text: '+$kBombCapScore', score: kBombCapScore);
     case PowerUpKind.star:
@@ -69,5 +69,65 @@ PickupOutcome applyPickup(
         text: '+$kWingmanCapScore',
         score: kWingmanCapScore,
       );
+  }
+}
+
+/// 掉落账本：统一维护通用补给与炸弹保底。
+class DropLedger {
+  int pity = 0, bombPity = 0, eliteKills = 0;
+
+  void reset() {
+    pity = 0;
+    bombPity = 0;
+    eliteKills = 0;
+  }
+
+  /// 非 Boss 击破固定传入两次抽签，保底不改变随机数消耗。
+  PowerUpKind? rollKill({
+    required EnemyKind kind,
+    required int wave,
+    required Player player,
+    required double dropScale,
+    required double chanceRoll,
+    required double kindRoll,
+  }) {
+    bombPity++;
+    if (isEliteClass(kind) && eliteKills < kEliteBombEvery) eliteKills++;
+    final bombLimit = player.bombs == 0
+        ? kBombPityKillsEmpty
+        : kBombPityKillsHeld;
+    if (player.bombs < Player.maxBombs &&
+        ((isEliteClass(kind) && eliteKills >= kEliteBombEvery) ||
+            bombPity >= bombLimit)) {
+      reset();
+      return PowerUpKind.bomb;
+    }
+    final pityDrop = pity >= dropPityLimitFor(wave);
+    if (chanceRoll <
+            (kEnemySpecs[kind]!.dropChance * dropScale).clamp(0.0, 1.0) ||
+        pityDrop) {
+      final result = pityDrop && player.weaponLevel < 3
+          ? PowerUpKind.weapon
+          : powerUpKindForRoll(kindRoll);
+      pity = 0;
+      if (result == PowerUpKind.bomb) reset();
+      return result;
+    }
+    pity++;
+    return null;
+  }
+
+  /// 从左到右按需补给、保证炸弹、随机补给，并结清账本。
+  List<PowerUpKind> bossDrops(Player player, double kindRoll) {
+    reset();
+    return [
+      player.weaponLevel < 5
+          ? PowerUpKind.weapon
+          : player.wingmen < Player.maxWingmen
+          ? PowerUpKind.wingman
+          : PowerUpKind.shield,
+      player.bombs < Player.maxBombs ? PowerUpKind.bomb : PowerUpKind.shield,
+      powerUpKindForRoll(kindRoll),
+    ];
   }
 }

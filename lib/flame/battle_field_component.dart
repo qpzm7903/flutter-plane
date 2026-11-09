@@ -34,19 +34,19 @@ class BattleFieldComponent extends PositionComponent {
   final DotBatch _dotsUnder = DotBatch();
   final CapsuleBatch _capsules = CapsuleBatch();
   final SegmentBatch _segments = SegmentBatch();
+  final SegmentBatch _segmentsTop = SegmentBatch();
 
   /// 文本缓存分两层：先按文本取样式表，再用整型样式键取排版结果。
   /// 热路径上不再拼接 `文本|字号|颜色|字重` 字符串，飘字与补给标签
   /// 每帧数百次查找也不会产生临时字符串。
   final Map<String, Map<int, TextPainter>> _textCache = {};
   int _textPainterCount = 0;
+
   /// 量化透明度后复用的 [Color]，避免逐帧为淡出中的粒子与血条新建颜色。
   final Map<int, Color> _colorCache = {};
 
   static const int _whiteArgb = 0xFFFFFFFF;
   static const int _starStreakArgb = 0xFF7FD8FF;
-  static final int _playerBulletGlowArgb = kPlayerBulletGlow.toARGB32();
-  static final int _playerBulletBodyArgb = kPlayerBulletBody.toARGB32();
   static final int _playerShieldArgb = kPlayerBulletGlow.toARGB32();
   static final int _playerShieldTrimArgb = kPlayerBulletBody.toARGB32();
   static final int _enemyEngineGlowArgb = kEnemyEngineGlow.toARGB32();
@@ -249,24 +249,25 @@ class BattleFieldComponent extends PositionComponent {
   void _drawWingmen(Canvas canvas) {
     if (controller.wingmen.isEmpty || !controller.player.alive) return;
     for (final wing in controller.wingmen) {
+      final visual = kWingmanVisuals[wing.role]!;
       canvas.save();
       canvas.translate(wing.x, wing.y);
-      _fill.color = const Color(0xAA2B6BFF);
+      _fill.color = visual.flame;
       canvas.save();
       canvas.translate(0, 5);
       // 尾焰长度随高光闪烁，复用同一条路径缩放绘制。
       canvas.scale(1, 0.75 + 0.25 * math.sin(controller.elapsed * 38));
       canvas.drawPath(_wingFlame, _fill);
       canvas.restore();
-      _fill.color = const Color(0xFF0E3B4F);
-      canvas.drawPath(wingmanHullPath, _fill);
+      _fill.color = visual.fill;
+      canvas.drawPath(visual.path, _fill);
       _stroke
-        ..color = const Color(0xFF9BFFEA)
+        ..color = visual.trim
         ..strokeWidth = 1.2;
-      canvas.drawPath(wingmanHullPath, _stroke);
+      canvas.drawPath(visual.path, _stroke);
       _fill.color = const Color(0xFFE6FFFF);
       canvas.drawCircle(const Offset(0, -1.6), 1.5, _fill);
-      _glow.color = const Color(0x889BFFEA);
+      _glow.color = visual.trim.withValues(alpha: 0.53);
       canvas.drawCircle(const Offset(0, 7), 2.2, _glow);
       canvas.restore();
     }
@@ -283,8 +284,7 @@ class BattleFieldComponent extends PositionComponent {
 
     // 尾焰：按正弦闪烁幅度取用预建路径，不再逐帧构造 Path。
     final flicker = 10 + math.sin(controller.elapsed * 42) * 4;
-    final flame =
-        _playerFlames[((flicker - 6) / 8 * 7).round().clamp(0, 7)];
+    final flame = _playerFlames[((flicker - 6) / 8 * 7).round().clamp(0, 7)];
     _fill.color = const Color(0xBB2B6BFF);
     canvas.drawPath(flame, _fill);
     _fill.color = const Color(0xE67FD8FF);
@@ -420,12 +420,40 @@ class BattleFieldComponent extends PositionComponent {
     // 玩家弹：辉光、弹体与弹芯一次遍历收集完再统一提交，
     // 每颗子弹只走一遍列表，不再分三趟读写批绘制缓冲。
     for (final bullet in controller.playerBullets) {
-      _dots.add(_playerBulletGlowArgb, bullet.x, bullet.y, 8, 0.28);
-      _capsules.add(_playerBulletBodyArgb, bullet.x, bullet.y, 4, 6, 1);
-      _capsules.add(_whiteArgb, bullet.x, bullet.y, 2.9, 2.2, 1);
+      final s = playerShotStyle(bullet.kind);
+      _dots.add(s.glowArgb, bullet.x, bullet.y, s.glowRadius, s.glowAlpha);
+      _segments.add(
+        s.bodyArgb,
+        bullet.x - bullet.vx * s.bodyK,
+        bullet.y - bullet.vy * s.bodyK,
+        bullet.x + bullet.vx * s.bodyK,
+        bullet.y + bullet.vy * s.bodyK,
+        s.bodyWidth,
+        1,
+      );
+      _segmentsTop.add(
+        s.coreArgb,
+        bullet.x - bullet.vx * s.coreK,
+        bullet.y - bullet.vy * s.coreK,
+        bullet.x + bullet.vx * s.coreK,
+        bullet.y + bullet.vy * s.coreK,
+        s.coreWidth,
+        1,
+      );
+      for (var i = 1; i <= s.tailDots; i++) {
+        final k = i * 12 / kPlayerBulletSpeed;
+        _dots.add(
+          s.glowArgb,
+          bullet.x - bullet.vx * k,
+          bullet.y - bullet.vy * k,
+          s.glowRadius / (i + 1),
+          s.glowAlpha,
+        );
+      }
     }
     _dots.flush(canvas);
-    _capsules.flush(canvas);
+    _segments.flush(canvas);
+    _segmentsTop.flush(canvas);
 
     // 敌弹：辉光写入下层桶，弹体与弹芯写入上层桶，一次遍历完成收集。
     // 两个桶分别提交，保持「全部辉光在下、弹芯在上」的既有层级。

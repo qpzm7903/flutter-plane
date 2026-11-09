@@ -1,3 +1,4 @@
+import 'package:sky_fighter/game/battle/player_weapon.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sky_fighter/game/battle/battle_tuning.dart';
 import 'package:sky_fighter/game/battle/battle_types.dart';
@@ -5,6 +6,12 @@ import 'package:sky_fighter/game/battle/boss_catalog.dart';
 import 'package:sky_fighter/game/battle/rules_text.dart';
 
 void main() {
+  test('穿透与精英炸弹说明由规则推导', () {
+    final text = supplyHints().join();
+    expect(text, contains('${firstPiercingLevel()} 级起'));
+    expect(text, contains('每 $kEliteBombEvery 次击破'));
+  });
+
   group('玩法说明文案', () {
     test('补给说明覆盖全部类型并带上限数值', () {
       final hints = supplyHints();

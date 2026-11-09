@@ -24,3 +24,13 @@ final Path wingmanHullPath = Path()
   ..lineTo(0, 3.2)
   ..lineTo(-6.5, 6)
   ..close();
+
+/// 重炮僚机：宽梯形机身与双炮管。
+final Path wingmanHeavyHullPath = Path()
+  ..moveTo(-4, -7)
+  ..lineTo(4, -7)
+  ..lineTo(9, 6)
+  ..lineTo(-9, 6)
+  ..close()
+  ..addRect(const Rect.fromLTWH(-7, -12, 2.5, 12))
+  ..addRect(const Rect.fromLTWH(4.5, -12, 2.5, 12));

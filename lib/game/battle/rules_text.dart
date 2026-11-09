@@ -1,6 +1,7 @@
 import 'battle_tuning.dart';
 import 'battle_types.dart';
 import 'boss_catalog.dart';
+import 'player_weapon.dart';
 
 /// 玩法说明文案：上限、档位与间隔全部取自调参表。
 ///
@@ -17,10 +18,10 @@ List<String> battleGoalHints() => [
 
 /// 补给说明，按 HUD 中的常见关注顺序排列。
 List<String> supplyHints() => [
-  '火力：提升弹道等级，最高 ${Player.maxWeaponLevel} 级。',
+  '火力：提升弹道等级，最高 ${Player.maxWeaponLevel} 级；${firstPiercingLevel()} 级起主炮可穿透一架普通敌机。',
   '护盾：展开能量罩，抵挡一次伤害。',
-  '炸弹：补充一枚全屏炸弹，上限 ${Player.maxBombs} 枚。',
-  '僚机：召唤一架僚机协同射击，最多 ${Player.maxWingmen} 架。',
+  '炸弹：补充一枚全屏炸弹，上限 ${Player.maxBombs} 枚；Boss 必出，精英机/堡垒每 $kEliteBombEvery 次击破必出，炸弹告急时另有保底。',
+  '僚机：左翼疾风僚机速射、右翼重炮僚机重击，最多 ${Player.maxWingmen} 架。',
   '分数：立即获得额外得分。',
   '急速：限时提升射速。',
 ];

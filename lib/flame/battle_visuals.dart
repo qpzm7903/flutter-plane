@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import '../game/battle/battle_types.dart';
+import '../game/ship_geometry.dart';
 
 export '../game/ship_geometry.dart';
 
@@ -285,6 +286,97 @@ const Map<PowerUpKind, Color> kPowerUpColors = {
 
 /// 补给配色的 ARGB 整数表：渲染层按档位缓存颜色时直接取整数。
 final Map<PowerUpKind, int> kPowerUpArgb = {
-  for (final entry in kPowerUpColors.entries)
-    entry.key: entry.value.toARGB32(),
+  for (final entry in kPowerUpColors.entries) entry.key: entry.value.toARGB32(),
+};
+
+/// 玩家弹三层样式，方向系数预计算，渲染热路径无需开方。
+class PlayerShotStyle {
+  const PlayerShotStyle(
+    this.glowArgb,
+    this.bodyArgb,
+    this.coreArgb,
+    this.glowRadius,
+    this.bodyHalf,
+    this.bodyWidth,
+    this.coreHalf,
+    this.coreWidth, {
+    this.glowAlpha = 0.25,
+    this.tailDots = 0,
+  }) : bodyK = bodyHalf / kPlayerBulletSpeed,
+       coreK = coreHalf / kPlayerBulletSpeed;
+  final int glowArgb, bodyArgb, coreArgb, tailDots;
+  final double glowRadius, glowAlpha, bodyHalf, bodyWidth, coreHalf, coreWidth;
+  final double bodyK, coreK;
+}
+
+const _pulseStyle = PlayerShotStyle(
+  0xFF4FD1FF,
+  0xFFB7F4FF,
+  0xFFFFFFFF,
+  8,
+  4,
+  6,
+  2.9,
+  2.2,
+);
+const List<PlayerShotStyle> _playerShotStyles = [
+  _pulseStyle,
+  _pulseStyle,
+  _pulseStyle,
+  _pulseStyle,
+  _pulseStyle,
+  _pulseStyle,
+  PlayerShotStyle(0xFF2ED9A0, 0xFF7CFFC4, 0xFFFFFFFF, 6, 5.5, 4.2, 4, 1.6),
+  PlayerShotStyle(0xFF5C8CFF, 0xFF8FB4FF, 0xFFE6F0FF, 5.5, 4.5, 3.2, 3.2, 1.4),
+  PlayerShotStyle(
+    0xFF9FE8FF,
+    0xFFE4FBFF,
+    0xFFFFFFFF,
+    10,
+    11,
+    5.2,
+    9,
+    2.2,
+    glowAlpha: 0.375,
+  ),
+  PlayerShotStyle(
+    0xFF4FD1FF,
+    0xFFCFF8FF,
+    0xFFFFFFFF,
+    13,
+    13,
+    7.5,
+    11,
+    3.2,
+    glowAlpha: 0.375,
+    tailDots: 2,
+  ),
+  PlayerShotStyle(0xFF9BFFEA, 0xFF9BFFEA, 0xFFFFFFFF, 4.5, 3.5, 2.6, 2.4, 1.1),
+  PlayerShotStyle(0xFF5C8CFF, 0xFF8FB8FF, 0xFFFFFFFF, 8, 6, 5.4, 4.5, 2),
+];
+PlayerShotStyle playerShotStyle(int kind) =>
+    kind >= 0 && kind < _playerShotStyles.length
+    ? _playerShotStyles[kind]
+    : _pulseStyle;
+
+/// 左右翼各自的机体、描边与尾焰。
+class WingmanVisual {
+  const WingmanVisual(this.path, this.fill, this.trim, this.flame);
+  final Path path;
+  final Color fill, trim, flame;
+}
+
+final Map<WingmanRole, WingmanVisual> kWingmanVisuals = {
+  WingmanRole.gale: WingmanVisual(
+    wingmanHullPath,
+    const Color(0xFF0E3B4F),
+    const Color(0xFF9BFFEA),
+    const Color(0xAA2B6BFF),
+  ),
+  WingmanRole.heavy: WingmanVisual(
+    wingmanHeavyHullPath,
+    const Color(0xFF162E52),
+    const Color(0xFF8FB8FF),
+    const Color(0xAA5C8CFF),
+  ),
 };

@@ -1,3 +1,5 @@
+import 'package:sky_fighter/game/battle/battle_tuning.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -5,6 +7,57 @@ import 'package:sky_fighter/game/battle/battle_types.dart';
 import 'package:sky_fighter/game/battle/player_weapon.dart';
 
 void main() {
+  test('六级弹种、伤害、穿透与名义火力符合配置', () {
+    const counts = [1, 2, 4, 5, 7, 9];
+    const damage = [1, 2, 4, 6, 8, 10];
+    const kinds = [
+      {0},
+      {6},
+      {6, 7},
+      {6, 7, 8},
+      {6, 7, 8},
+      {7, 8, 9},
+    ];
+    var previous = 0.0;
+    for (var level = 1; level <= 6; level++) {
+      final shots = buildPlayerShots(
+        Player(x: 200, y: 600)..weaponLevel = level,
+      );
+      expect(shots, hasLength(counts[level - 1]));
+      expect(shots.map((b) => b.kind).toSet(), kinds[level - 1]);
+      final total = shots.fold<double>(0, (sum, b) => sum + b.damage);
+      expect(total, damage[level - 1]);
+      final dps = total / playerFireInterval(level, rapid: false);
+      expect(dps, greaterThan(previous));
+      previous = dps;
+      if (level < firstPiercingLevel()) {
+        expect(shots.every((b) => b.pierce == 0), isTrue);
+      } else {
+        expect(
+          shots.any((b) => b.x == 200 && b.pierce == 1 && b.damage == 2),
+          isTrue,
+        );
+      }
+    }
+    expect(firstPiercingLevel(), 4);
+    expect(previous, lessThanOrEqualTo(9 / 0.11 * 1.25));
+  });
+  test('左右僚机弹种与伤害半径来自各自配置', () {
+    for (final side in [-1, 1]) {
+      final wing = Wingman(side: side, x: 100, y: 200);
+      expect(wing.role, side < 0 ? WingmanRole.gale : WingmanRole.heavy);
+      final spec = kWingmanSpecs[wing.role]!;
+      final out = <Bullet>[];
+      appendWingmanShots(wing, out);
+      expect(
+        out.single.kind,
+        side < 0 ? BulletKind.galeBolt : BulletKind.heavyBolt,
+      );
+      expect(out.single.damage, spec.damage);
+      expect(out.single.radius, spec.radius);
+    }
+  });
+
   group('玩家弹道', () {
     test('一级火力单发直射', () {
       final player = Player(x: 200, y: 600);

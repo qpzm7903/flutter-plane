@@ -1,3 +1,6 @@
+import 'package:sky_fighter/game/battle/player_weapon.dart';
+import 'package:sky_fighter/flame/battle_visuals.dart';
+
 import 'dart:typed_data';
 import 'dart:ui';
 
@@ -10,6 +13,8 @@ import 'package:sky_fighter/game/logic_rate.dart';
 
 /// 统计绘制调用的画布：批绘制的调用数与点数都能直接断言。
 class CountingCanvas implements Canvas {
+  final lines = <List<double>>[];
+  final lineColors = <int>[];
   int rawPointsCalls = 0;
   int rawPointCount = 0;
   int linePointCount = 0;
@@ -21,6 +26,10 @@ class CountingCanvas implements Canvas {
 
   @override
   void drawRawPoints(PointMode mode, Float32List points, Paint paint) {
+    if (mode == PointMode.lines) {
+      lines.add(points.toList());
+      lineColors.add(paint.color.toARGB32());
+    }
     rawPointsCalls++;
     rawPointCount += points.length ~/ 2;
     if (mode == PointMode.lines) linePointCount += points.length ~/ 2;
@@ -105,6 +114,128 @@ BattleController _controllerWithBullets() {
 }
 
 void main() {
+  testWidgets('全部十二种弹种同屏保持批绘制预算', (tester) async {
+    final c = _controllerWithBullets();
+    addTearDown(c.dispose);
+    c.playerBullets.clear();
+    c.enemyBullets.clear();
+    c.enemies.clear();
+    for (var kind = 0; kind < 12; kind++) {
+      for (var i = 0; i < 10; i++) {
+        final b = Bullet(
+          x: 50 + i * 20,
+          y: 100 + kind * 30,
+          vx: kind.isEven ? 0 : 100,
+          vy: -550,
+          radius: 4,
+          damage: 1,
+          fromPlayer: BulletKind.isPlayer(kind),
+          kind: kind,
+        );
+        (b.fromPlayer ? c.playerBullets : c.enemyBullets).add(b);
+      }
+    }
+    final component = BattleFieldComponent(
+      controller: c,
+      logicRate: LogicRate.hz120,
+    )..size = Vector2(400, 700);
+    addTearDown(component.onRemove);
+    final canvas = CountingCanvas();
+    component.render(canvas);
+    expect(canvas.rawPointsCalls, lessThanOrEqualTo(40));
+    expect(canvas.circleCalls, 0);
+    expect(tester.takeException(), isNull);
+  });
+  for (final mixed in [false, true]) {
+    testWidgets('满级弹道加双僚机与一百五十敌弹保持预算（混色：$mixed）', (tester) async {
+      final c = _controllerWithBullets();
+      addTearDown(c.dispose);
+      c.enemies.clear();
+      if (!mixed) {
+        // 单类密集齐射场景；另测三类敌弹混合时的额外颜色桶。
+        c.enemyBullets.clear();
+        for (var i = 0; i < 150; i++) {
+          c.enemyBullets.add(
+            Bullet(
+              x: 20 + i % 20 * 18,
+              y: 200 + i ~/ 20 * 30,
+              vx: 0,
+              vy: 160,
+              radius: 4.2,
+              damage: 1,
+              fromPlayer: false,
+              kind: BulletKind.aimed,
+            ),
+          );
+        }
+      }
+      c.playerBullets.clear();
+      c.player.weaponLevel = 6;
+      appendPlayerShots(c.player, c.playerBullets);
+      for (final side in [-1, 1]) {
+        final wing = Wingman(side: side, x: 200 + side * 27, y: 600);
+        c.wingmen.add(wing);
+        appendWingmanShots(wing, c.playerBullets);
+      }
+      final component = BattleFieldComponent(
+        controller: c,
+        logicRate: LogicRate.hz120,
+      )..size = Vector2(400, 700);
+      addTearDown(component.onRemove);
+      final canvas = CountingCanvas();
+      component.render(canvas);
+      expect(canvas.rawPointsCalls, lessThanOrEqualTo(mixed ? 24 : 20));
+      expect(canvas.circleCalls, 4);
+      c.wingmen.clear();
+      final empty = CountingCanvas();
+      component.render(empty);
+      expect(empty.circleCalls, 0);
+      expect(tester.takeException(), isNull);
+    });
+  }
+  testWidgets('玩家弹线段沿速度方向，弹芯层统一覆盖弹体', (tester) async {
+    final c = _controllerWithBullets();
+    addTearDown(c.dispose);
+    c.enemies.clear();
+    c.playerBullets.clear();
+    c.enemyBullets.clear();
+    c.player.alive = false;
+    for (final vx in [0.0, 160.0]) {
+      c.playerBullets.add(
+        Bullet(
+          x: 100 + vx,
+          y: 200,
+          vx: vx,
+          vy: -560,
+          radius: 3,
+          damage: 1,
+          fromPlayer: true,
+          kind: BulletKind.needle,
+        ),
+      );
+    }
+    final component = BattleFieldComponent(
+      controller: c,
+      logicRate: LogicRate.hz60,
+    )..size = Vector2(400, 700);
+    addTearDown(component.onRemove);
+    final canvas = CountingCanvas();
+    component.render(canvas);
+    expect(canvas.lines, hasLength(2));
+    for (final points in canvas.lines) {
+      expect(points[0], points[2]);
+      expect(points[4], isNot(points[6]));
+      expect(
+        (points[6] - points[4]) / (points[7] - points[5]),
+        closeTo(160 / -560, 0.0001),
+      );
+    }
+    final style = playerShotStyle(BulletKind.needle);
+    expect(canvas.lineColors, [style.bodyArgb, style.coreArgb]);
+    expect(playerShotStyle(-1), same(playerShotStyle(0)));
+    expect(playerShotStyle(100), same(playerShotStyle(0)));
+  });
+
   testWidgets('密集弹幕按颜色分桶批绘制，绘制调用远少于弹数', (tester) async {
     final controller = _controllerWithBullets();
     addTearDown(controller.dispose);

@@ -69,13 +69,22 @@ void clampEnemyToArena(Enemy enemy, Size world) {
 
 /// 每一波带来的血量与射速修正。
 const double kWaveDifficultyStep = 0.09;
+const double kEarlyDifficultyStep = 0.05;
+const double kLateDifficultyStep = 0.12;
+const int kEarlyWaveLast = 3, kLateWaveFrom = 13;
+const double kEnemyFireScaleFloor = 0.55;
 
 /// 第 [wave] 波的敌机强度系数。
 double waveDifficulty(int wave) =>
-    1 + kWaveDifficultyStep * math.max(0, wave - 1);
+    1 +
+    kEarlyDifficultyStep * (wave - 1).clamp(0, kEarlyWaveLast - 1) +
+    kWaveDifficultyStep *
+        (wave - kEarlyWaveLast).clamp(0, kLateWaveFrom - kEarlyWaveLast - 1) +
+    kLateDifficultyStep * math.max(0, wave - kLateWaveFrom + 1);
 
 /// 后期敌机射速加快的系数：与血量共用同一条难度曲线。
-double enemyFireIntervalScale(int wave) => 1 / math.sqrt(waveDifficulty(wave));
+double enemyFireIntervalScale(int wave) =>
+    math.max(kEnemyFireScaleFloor, 1 / math.sqrt(waveDifficulty(wave)));
 
 // ---------------------------------------------------------------- 玩家火力
 
@@ -114,13 +123,31 @@ int comboMultiplier(int combo) {
 /// 连续多少架未掉落补给后强制掉落一次。
 const int kDropPityLimit = 20;
 
-/// 掉落随机数对应的补给类型，概率顺序与玩法说明一致。
+/// 开局库存与各类保底的阈值。
+const int kStartBombs = 2, kEliteBombEvery = 4;
+const int kBombPityKillsEmpty = 24, kBombPityKillsHeld = 48;
+const int kEarlyDropWaves = 2, kEarlyDropPityLimit = 10;
+const double kBossDropOffsetX = 26;
+
+/// 随机补给权重，累计阈值由此表推导。
+const Map<PowerUpKind, int> kPowerUpWeights = {
+  PowerUpKind.weapon: 34,
+  PowerUpKind.shield: 20,
+  PowerUpKind.bomb: 8,
+  PowerUpKind.star: 12,
+  PowerUpKind.rapid: 14,
+  PowerUpKind.wingman: 12,
+};
+int dropPityLimitFor(int wave) =>
+    wave <= kEarlyDropWaves ? kEarlyDropPityLimit : kDropPityLimit;
+bool isEliteClass(EnemyKind kind) =>
+    kind == EnemyKind.elite || kind == EnemyKind.fortress;
 PowerUpKind powerUpKindForRoll(double roll) {
-  if (roll < 0.36) return PowerUpKind.weapon;
-  if (roll < 0.56) return PowerUpKind.shield;
-  if (roll < 0.68) return PowerUpKind.bomb;
-  if (roll < 0.79) return PowerUpKind.star;
-  if (roll < 0.9) return PowerUpKind.rapid;
+  var total = 0;
+  for (final entry in kPowerUpWeights.entries) {
+    total += entry.value;
+    if (roll < total / 100) return entry.key;
+  }
   return PowerUpKind.wingman;
 }
 
@@ -142,13 +169,40 @@ const double kWingmanOffsetY = 13;
 /// 僚机追随玩家的收敛速度（越大越跟手）。
 const double kWingmanFollowLerp = 11;
 
-/// 僚机的射击间隔、弹速与伤害。
-const double kWingmanFireInterval = 0.36;
+/// 僚机共用弹速，角色只改变节奏与弹体规格。
 const double kWingmanBulletSpeed = 540;
-const double kWingmanBulletDamage = 1;
 
-/// 僚机的外张角：左右僚机的弹道略微向两侧展开。
-const double kWingmanSpreadAngle = 0.06;
+/// 左右僚机的射击参数与入场节拍。
+class WingmanSpec {
+  const WingmanSpec({
+    required this.fireInterval,
+    required this.damage,
+    required this.radius,
+    required this.spreadAngle,
+    required this.bulletKind,
+    this.initialCooldown = 0,
+  });
+  final double fireInterval, damage, radius, spreadAngle, initialCooldown;
+  final int bulletKind;
+}
+
+const Map<WingmanRole, WingmanSpec> kWingmanSpecs = {
+  WingmanRole.gale: WingmanSpec(
+    fireInterval: 0.24,
+    damage: 0.8,
+    radius: 2.8,
+    spreadAngle: 0.06,
+    bulletKind: BulletKind.galeBolt,
+  ),
+  WingmanRole.heavy: WingmanSpec(
+    fireInterval: 0.60,
+    damage: 2,
+    radius: 4,
+    spreadAngle: 0.04,
+    bulletKind: BulletKind.heavyBolt,
+    initialCooldown: 0.2,
+  ),
+};
 
 // ---------------------------------------------------------------- 伤害
 

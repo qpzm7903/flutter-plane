@@ -3,12 +3,33 @@ import 'package:sky_fighter/game/battle/battle_tuning.dart';
 import 'package:sky_fighter/game/battle/battle_types.dart';
 
 void main() {
+  test('分段难度边界与极后期射速下限', () {
+    const expected = {
+      1: 1.0,
+      2: 1.05,
+      3: 1.10,
+      4: 1.19,
+      5: 1.28,
+      8: 1.55,
+      9: 1.64,
+      12: 1.91,
+      13: 2.03,
+      16: 2.39,
+      20: 2.87,
+    };
+    for (final entry in expected.entries) {
+      expect(waveDifficulty(entry.key), closeTo(entry.value, 1e-9));
+    }
+    expect(enemyFireIntervalScale(1000), kEnemyFireScaleFloor);
+    expect(kPowerUpWeights.values.reduce((a, b) => a + b), 100);
+  });
+
   group('难度曲线', () {
-    test('首波为基准难度，之后逐波线性提高', () {
+    test('首波为基准难度，之后按分段提高', () {
       expect(waveDifficulty(0), 1);
       expect(waveDifficulty(1), 1);
-      expect(waveDifficulty(2), closeTo(1.09, 1e-9));
-      expect(waveDifficulty(11), closeTo(1.9, 1e-9));
+      expect(waveDifficulty(2), closeTo(1.05, 1e-9));
+      expect(waveDifficulty(11), closeTo(1.82, 1e-9));
     });
 
     test('敌机射速随难度同步加快', () {
@@ -54,12 +75,12 @@ void main() {
   group('掉落映射', () {
     test('随机数落在对应区间时返回对应补给', () {
       expect(powerUpKindForRoll(0), PowerUpKind.weapon);
-      expect(powerUpKindForRoll(0.35), PowerUpKind.weapon);
-      expect(powerUpKindForRoll(0.36), PowerUpKind.shield);
-      expect(powerUpKindForRoll(0.56), PowerUpKind.bomb);
-      expect(powerUpKindForRoll(0.68), PowerUpKind.star);
-      expect(powerUpKindForRoll(0.79), PowerUpKind.rapid);
-      expect(powerUpKindForRoll(0.9), PowerUpKind.wingman);
+      expect(powerUpKindForRoll(0.33), PowerUpKind.weapon);
+      expect(powerUpKindForRoll(0.34), PowerUpKind.shield);
+      expect(powerUpKindForRoll(0.54), PowerUpKind.bomb);
+      expect(powerUpKindForRoll(0.62), PowerUpKind.star);
+      expect(powerUpKindForRoll(0.74), PowerUpKind.rapid);
+      expect(powerUpKindForRoll(0.88), PowerUpKind.wingman);
       expect(powerUpKindForRoll(0.999), PowerUpKind.wingman);
     });
 

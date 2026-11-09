@@ -1,3 +1,5 @@
+import 'package:sky_fighter/game/battle/battle_tuning.dart';
+import 'package:sky_fighter/game/challenge/daily_challenge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sky_fighter/game/battle/battle_controller.dart';
@@ -28,6 +30,221 @@ void advance(
 }
 
 void main() {
+  group('穿透碰撞', () {
+    BattleController arena() {
+      final c = buildController();
+      c.player.fireCooldown = 100;
+      addTearDown(c.dispose);
+      return c;
+    }
+
+    Enemy enemy(
+      BattleController c,
+      double y, {
+      EnemyKind kind = EnemyKind.fighter,
+      double? hp,
+    }) {
+      final e = Enemy(
+        kind: kind,
+        pattern: EnemyPattern.straight,
+        x: 200,
+        y: y,
+        difficulty: 1,
+      )..vy = 0;
+      if (hp != null) e.hp = hp;
+      c.enemies.add(e);
+      return e;
+    }
+
+    Bullet shot(
+      BattleController c, {
+      int pierce = 1,
+      double y = 200,
+      double vy = -560,
+    }) {
+      final b = Bullet(
+        x: 200,
+        y: y,
+        vx: 0,
+        vy: vy,
+        radius: 3.6,
+        damage: 2,
+        fromPlayer: true,
+        pierce: pierce,
+        kind: BulletKind.lance,
+      );
+      c.playerBullets.add(b);
+      return b;
+    }
+
+    test('一帧扫过两架敌机，两架受伤后消失', () {
+      final c = arena(), dt = 0.1;
+      final a = enemy(c, 185), b = enemy(c, 150), s = shot(c);
+      c.update(dt);
+      expect(a.hp, 8);
+      expect(b.hp, 8);
+      expect(s.dead, isTrue);
+    });
+    test('连续多帧重叠同一架敌机只结算一次', () {
+      final c = arena(), a = enemy(c, 200), s = shot(c, vy: 0);
+      for (var i = 0; i < 5; i++) {
+        c.update(0.01);
+      }
+      expect(a.hp, 8);
+      expect(s.lastHit, same(a));
+      expect(s.dead, isFalse);
+    });
+    test('命中 Boss 即消失且不伤后方敌机', () {
+      final c = arena(),
+          a = enemy(c, 92, kind: EnemyKind.boss),
+          b = enemy(c, 92),
+          s = shot(c, y: 92, vy: 0);
+      c.update(0.01);
+      final hp = a.hp;
+      c.update(0.01);
+      expect(hp, a.maxHp - 2);
+      expect(a.hp, hp);
+      expect(b.hp, 10);
+      expect(s.dead, isTrue);
+    });
+    test('普通弹命中第一架即消失', () {
+      final c = arena(),
+          a = enemy(c, 185),
+          b = enemy(c, 150),
+          s = shot(c, pierce: 0);
+      c.update(0.1);
+      expect(a.hp, 8);
+      expect(b.hp, 10);
+      expect(s.dead, isTrue);
+    });
+    test('击杀第一架后仍能飞行并命中第二架', () {
+      final c = arena(),
+          a = enemy(c, 190, hp: 2),
+          b = enemy(c, 130),
+          s = shot(c);
+      c.update(0.01);
+      expect(a.dead, isTrue);
+      expect(s.dead, isFalse);
+      c.update(0.1);
+      expect(b.hp, 8);
+      expect(s.dead, isTrue);
+    });
+    test('敌弹忽略穿透字段，仍按玩家受伤规则消失', () {
+      final c = arena();
+      c.player.invuln = 0;
+      final s = Bullet(
+        x: c.player.x,
+        y: c.player.y,
+        vx: 0,
+        vy: 0,
+        radius: 4,
+        damage: 1,
+        fromPlayer: false,
+        pierce: 1,
+      );
+      c.enemyBullets.add(s);
+      c.update(0.01);
+      expect(c.player.lives, Player.startLives - 1);
+      expect(s.dead, isTrue);
+    });
+  });
+  group('掉落接线', () {
+    Enemy kill(BattleController c, EnemyKind kind) {
+      final e = Enemy(
+        kind: kind,
+        pattern: EnemyPattern.straight,
+        x: 200,
+        y: kind == EnemyKind.boss ? 92 : 150,
+        difficulty: 1,
+      )..vy = 0;
+      c.enemies.add(e);
+      c.playerBullets.add(
+        Bullet(
+          x: 200,
+          y: e.y,
+          vx: 0,
+          vy: 0,
+          radius: 3,
+          damage: 10000,
+          fromPlayer: true,
+        ),
+      );
+      c.update(0.001);
+      return e;
+    }
+
+    test('Boss 三份补给按左右偏移摆放，中间保证炸弹', () {
+      final c = buildController();
+      addTearDown(c.dispose);
+      final e = kill(c, EnemyKind.boss);
+      expect(c.powerUps, hasLength(3));
+      expect(c.powerUps.map((p) => p.x), [
+        e.x - kBossDropOffsetX,
+        e.x,
+        e.x + kBossDropOffsetX,
+      ]);
+      expect(c.powerUps[1].kind, PowerUpKind.bomb);
+    });
+    test('同种子同击破脚本得到完全相同掉落序列', () {
+      final a = buildController(), b = buildController();
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+      List<List<Object>> script(BattleController c) {
+        final out = <List<Object>>[];
+        for (var i = 0; i < 60; i++) {
+          kill(c, EnemyKind.values[i % 7]);
+          out.add([for (final p in c.powerUps) p.kind]);
+          c.powerUps.clear();
+        }
+        return out;
+      }
+
+      final expected = script(a);
+      expect(script(b), expected);
+    });
+    test('普通与补给管制下第四次精英击破均保证炸弹', () {
+      // 固定种子此脚本前三次没有随机炸弹，第四次命中保底。
+      for (final modifier in [
+        ChallengeModifier.standard,
+        ChallengeModifier.scarcity,
+      ]) {
+        final c = BattleController(
+          size: const Size(400, 700),
+          seed: 42,
+          challenge: DailyChallenge(
+            dateKey: '20261108',
+            seed: 42,
+            modifier: modifier,
+          ),
+        )..start();
+        addTearDown(c.dispose);
+        for (var i = 0; i < 3; i++) {
+          kill(c, EnemyKind.elite);
+        }
+        expect(c.powerUps.where((p) => p.kind == PowerUpKind.bomb), isEmpty);
+        c.powerUps.clear();
+        kill(c, EnemyKind.elite);
+        expect(c.powerUps.single.kind, PowerUpKind.bomb);
+      }
+    });
+    test('僚机拾取按侧设置初始节拍并遵守数量上限', () {
+      final c = buildController();
+      addTearDown(c.dispose);
+      for (var i = 0; i < 3; i++) {
+        c.powerUps.add(
+          PowerUp(x: c.player.x, y: c.player.y, kind: PowerUpKind.wingman),
+        );
+        c.update(0.001);
+      }
+      expect(c.wingmen, hasLength(Player.maxWingmen));
+      expect(c.wingmen.map((w) => w.role), [
+        WingmanRole.gale,
+        WingmanRole.heavy,
+      ]);
+      expect(c.wingmen[1].cooldown, greaterThan(0));
+    });
+  });
+
   group('BattleController 基础流程', () {
     test('开始后进入战斗并自动开火', () {
       final controller = buildController();

@@ -112,7 +112,7 @@ class WaveDirector {
     }
 
     // V 形侦察机编队，从正中压下来。
-    final vCount = 3 + (tier + 1) % 3;
+    final vCount = tier <= 1 ? 3 : 3 + (tier + 1) % 3;
     for (var i = 0; i < vCount; i++) {
       final offset = (i - (vCount - 1) / 2) * 32;
       add(
@@ -125,7 +125,7 @@ class WaveDirector {
     }
 
     // 横排侦察机，间隔落下。
-    final lineCount = 3 + tier % 3;
+    final lineCount = tier <= 1 ? 3 : 3 + tier % 3;
     final lineStart = 70 + _rng.nextDouble() * 40;
     for (var i = 0; i < lineCount; i++) {
       add(
@@ -145,13 +145,15 @@ class WaveDirector {
         EnemyPattern.straight,
         2.5,
       );
-      add(
-        EnemyKind.fighter,
-        left ? kWorldWidth - 110 : 110,
-        EnemyPattern.dive,
-        2.75,
-        phase: 0.4,
-      );
+      if (tier != 2) {
+        add(
+          EnemyKind.fighter,
+          left ? kWorldWidth - 110 : 110,
+          EnemyPattern.dive,
+          2.75,
+          phase: 0.4,
+        );
+      }
     }
 
     if (tier >= 3) {
@@ -193,6 +195,24 @@ class WaveDirector {
         3.9,
         phase: 0.25,
       );
+      if (tier >= 11) {
+        add(
+          EnemyKind.elite,
+          fromLeft ? kWorldWidth - 96 : 96,
+          EnemyPattern.hover,
+          5.8,
+        );
+      }
+      if (tier >= 13) {
+        add(
+          EnemyKind.interceptor,
+          fromLeft ? 74 : kWorldWidth - 74,
+          EnemyPattern.dive,
+          4.2,
+        );
+        add(EnemyKind.drone, 150, EnemyPattern.chase, 4.6);
+        add(EnemyKind.drone, kWorldWidth - 150, EnemyPattern.chase, 4.95);
+      }
     }
 
     if (tier >= 7) {
@@ -211,11 +231,17 @@ class WaveDirector {
     if (tier >= 8) {
       add(
         EnemyKind.fortress,
-        kWorldWidth / 2 + (_rng.nextDouble() - 0.5) * 60,
+        tier >= 17
+            ? kWorldWidth / 2 - 85
+            : kWorldWidth / 2 + (_rng.nextDouble() - 0.5) * 60,
         EnemyPattern.hover,
         4.9,
         phase: _rng.nextDouble(),
       );
+    }
+
+    if (tier >= 17) {
+      add(EnemyKind.fortress, kWorldWidth / 2 + 85, EnemyPattern.hover, 5.4);
     }
 
     if (tier >= 9) {
@@ -227,6 +253,8 @@ class WaveDirector {
         phase: 0.6,
       );
     }
+    // 后期编队按门槛追加，提交前按时间排序，避免较早增援被队首阻塞。
+    entries.sort((a, b) => a.delay.compareTo(b.delay));
     return entries;
   }
 }

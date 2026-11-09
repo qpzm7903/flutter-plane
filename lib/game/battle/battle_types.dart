@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'battle_tuning.dart' show kStartBombs;
+
 /// 战场逻辑宽度：所有尺寸、速度都按这一宽度设计，渲染时整体缩放。
 const double kWorldWidth = 400;
 
@@ -70,6 +72,9 @@ class BulletKind {
 
   /// 幽影方舟的相位弹：紫白色，配合第三种 Boss 的弹幕。
   static const int phase = 5;
+  static const int twin = 6, needle = 7, lance = 8, nova = 9;
+  static const int galeBolt = 10, heavyBolt = 11;
+  static bool isPlayer(int kind) => kind == player || kind >= twin;
 }
 
 /// 敌机静态参数。
@@ -189,7 +194,7 @@ class Player {
   double x;
   double y;
   int lives = startLives;
-  int bombs = 2;
+  int bombs = kStartBombs;
   int weaponLevel = 1;
 
   /// 护盾剩余时间（秒），大于 0 时可抵挡一次伤害。
@@ -217,12 +222,15 @@ class Player {
   static const int maxWingmen = 2;
 }
 
+enum WingmanRole { gale, heavy }
+
 /// 僚机：在玩家两侧护航并自动开火。
 class Wingman {
   Wingman({required this.side, required this.x, required this.y});
 
   /// -1 为左翼，1 为右翼。
   final int side;
+  WingmanRole get role => side < 0 ? WingmanRole.gale : WingmanRole.heavy;
   double x;
   double y;
   double cooldown = 0;
@@ -295,6 +303,7 @@ class Bullet {
     required this.damage,
     required this.fromPlayer,
     this.kind = 0,
+    this.pierce = 0,
   });
 
   double x;
@@ -305,8 +314,12 @@ class Bullet {
   final double damage;
   final bool fromPlayer;
 
-  /// 0 能量弹、1 瞄准弹、2 散射弹、3 Boss 弹、4 等离子弹、5 相位弹。
+  /// 弹种编号，敌弹与玩家各级弹道的取值见 [BulletKind]。
   final int kind;
+
+  /// 剩余普通敌机穿透次数；上次命中引用避免跨帧重复结算。
+  int pierce;
+  Enemy? lastHit;
   bool dead = false;
 }
 

@@ -80,7 +80,7 @@ class BattleController extends ChangeNotifier {
   int _lastHudSignature = 0;
   double _trailTimer = 0;
   double _shootCooldown = 0;
-  int _dropPity = 0;
+  final DropLedger _drops = DropLedger();
 
   BattlePhase phase = BattlePhase.ready;
   int score = 0;
@@ -161,7 +161,7 @@ class BattleController extends ChangeNotifier {
     _lastHudSignature = 0;
     _trailTimer = 0;
     _shootCooldown = 0;
-    _dropPity = 0;
+    _drops.reset();
     _moveAxis = Offset.zero;
     _bossHp.value = 0;
     _effects.resetStars(_size);
@@ -364,7 +364,7 @@ class BattleController extends ChangeNotifier {
       wing.y += (targetY - wing.y) * follow;
       wing.cooldown -= dt;
       if (wing.cooldown > 0) continue;
-      wing.cooldown = kWingmanFireInterval;
+      wing.cooldown = kWingmanSpecs[wing.role]!.fireInterval;
       appendWingmanShots(wing, playerBullets);
     }
   }
@@ -510,10 +510,10 @@ class BattleController extends ChangeNotifier {
     if (enemy.isBoss) {
       flash = 0.5;
       _emit(BattleEvent.bigExplosion);
-      _dropAt(enemy.x - 26, enemy.y);
-      _dropAt(enemy.x, enemy.y);
-      _dropAt(enemy.x + 26, enemy.y);
-      _dropPity = 0;
+      final drops = _drops.bossDrops(player, _rng.nextDouble());
+      for (var i = 0; i < drops.length; i++) {
+        _dropAt(enemy.x + (i - 1) * kBossDropOffsetX, enemy.y, drops[i]);
+      }
       _effects.addPopup(
         ScorePopup(
           x: enemy.x,
@@ -527,17 +527,17 @@ class BattleController extends ChangeNotifier {
       notifyListeners();
     } else {
       _emit(big ? BattleEvent.bigExplosion : BattleEvent.explosion);
-      // 连续多架未掉落时强制补给一次，避免整局拿不到火力升级。
-      final dropChance = (enemy.spec.dropChance * challengeModifier.dropScale)
-          .clamp(0.0, 1.0);
-      final drop =
-          _rng.nextDouble() < dropChance || _dropPity >= kDropPityLimit;
-      if (drop) {
-        _dropAt(enemy.x, enemy.y);
-        _dropPity = 0;
-      } else {
-        _dropPity++;
-      }
+      final chanceRoll = _rng.nextDouble();
+      final kindRoll = _rng.nextDouble();
+      final drop = _drops.rollKill(
+        kind: enemy.kind,
+        wave: wave,
+        player: player,
+        dropScale: challengeModifier.dropScale,
+        chanceRoll: chanceRoll,
+        kindRoll: kindRoll,
+      );
+      if (drop != null) _dropAt(enemy.x, enemy.y, drop);
     }
   }
 
@@ -575,8 +575,7 @@ class BattleController extends ChangeNotifier {
     if (write < powerUps.length) powerUps.length = write;
   }
 
-  void _dropAt(double x, double y) {
-    final kind = powerUpKindForRoll(_rng.nextDouble());
+  void _dropAt(double x, double y, PowerUpKind kind) {
     powerUps.add(
       PowerUp(
         x: clampDouble(x, kEnemySideMargin, _size.width - kEnemySideMargin),
@@ -600,9 +599,13 @@ class BattleController extends ChangeNotifier {
       ),
     );
     if (outcome.spawnWingman) {
-      wingmen.add(
-        Wingman(side: player.wingmen.isOdd ? -1 : 1, x: player.x, y: player.y),
+      final wing = Wingman(
+        side: player.wingmen.isOdd ? -1 : 1,
+        x: player.x,
+        y: player.y,
       );
+      wing.cooldown = kWingmanSpecs[wing.role]!.initialCooldown;
+      wingmen.add(wing);
     }
     _effects.burst(
       position,
@@ -649,7 +652,7 @@ class BattleController extends ChangeNotifier {
       final fromX = bullet.x - bullet.vx * dt;
       final fromY = bullet.y - bullet.vy * dt;
       for (final enemy in enemies) {
-        if (enemy.dead) continue;
+        if (enemy.dead || identical(enemy, bullet.lastHit)) continue;
         final reach = enemy.radius + bullet.radius;
         if (!sweepHitsCircleXY(
           centerX: enemy.x,
@@ -662,9 +665,14 @@ class BattleController extends ChangeNotifier {
         )) {
           continue;
         }
-        bullet.dead = true;
         _damageEnemy(enemy, bullet.damage);
         _effects.spark(Offset(bullet.x, bullet.y), 0xFFB7F4FF);
+        if (bullet.pierce > 0 && !enemy.isBoss) {
+          bullet.pierce--;
+          bullet.lastHit = enemy;
+          continue;
+        }
+        bullet.dead = true;
         break;
       }
     }
