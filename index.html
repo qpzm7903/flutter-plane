@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>苍穹战机 · 在线试玩</title>
+  <meta name="description" content="苍穹战机 的在线试玩入口与历史版本列表，每个发布 tag 对应一个可独立试玩的 Web 版本。">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 48px 20px 64px;
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", system-ui, sans-serif;
+      color: #e7eefa;
+      background: radial-gradient(circle at 50% -20%, #16224a 0%, #0a1026 45%, #05070f 100%);
+    }
+    .wrap { max-width: 960px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 26px; }
+    h1 { margin: 0 0 10px; font-size: clamp(24px, 4vw, 34px); letter-spacing: 1px; }
+    header p { margin: 0; color: #9db2d4; font-size: 14px; line-height: 1.7; }
+
+    /* 顶部最新正式版本入口 */
+    .hero {
+      display: block;
+      margin-bottom: 26px;
+      padding: 26px 24px 24px;
+      border-radius: 18px;
+      text-align: center;
+      text-decoration: none;
+      color: inherit;
+      background: linear-gradient(135deg, rgba(53, 200, 255, 0.28) 0%, rgba(43, 107, 255, 0.16) 100%);
+      border: 1px solid rgba(53, 200, 255, 0.55);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(53, 200, 255, 0.12);
+      transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+    .hero:hover {
+      transform: translateY(-2px);
+      border-color: #9be8ff;
+      background: linear-gradient(135deg, rgba(53, 200, 255, 0.42) 0%, rgba(43, 107, 255, 0.24) 100%);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(53, 200, 255, 0.24);
+    }
+    .hero-label { display: block; font-size: 13px; font-weight: 600; letter-spacing: 3px; color: #c7f0ff; }
+    .hero-ver { display: block; margin: 8px 0 14px; font-size: clamp(28px, 6vw, 42px); font-weight: 700; letter-spacing: 2px; }
+    .hero-go {
+      display: inline-block;
+      padding: 9px 26px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #00243a;
+      background: #35c8ff;
+    }
+
+    /* 正式版本 / 调试版本两列 */
+    .columns {
+      display: grid;
+      gap: 20px;
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+      align-items: start;
+    }
+    .panel {
+      padding: 18px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid rgba(53, 200, 255, 0.14);
+    }
+    .panel h2 {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0 0 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(53, 200, 255, 0.16);
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      color: #f0e0cc;
+    }
+    .panel h2::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #35c8ff;
+      box-shadow: 0 0 8px #35c8ff;
+    }
+    .panel-debug h2::before { background: #7b6bff; box-shadow: 0 0 8px #7b6bff; }
+
+    .list { display: grid; gap: 10px; }
+    .card {
+      display: block;
+      padding: 14px 18px;
+      border-radius: 12px;
+      text-decoration: none;
+      color: inherit;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(53, 200, 255, 0.22);
+      transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: #35c8ff;
+      background: rgba(53, 200, 255, 0.14);
+    }
+    .ver { display: block; font-size: 18px; font-weight: 600; letter-spacing: 0.5px; }
+    .badge {
+      display: inline-block;
+      margin-left: 8px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #00243a;
+      background: #35c8ff;
+      vertical-align: 2px;
+    }
+    .badge-debug { background: #7b6bff; color: #2a1602; }
+    .go { display: block; margin-top: 4px; font-size: 12px; color: #9db2d4; }
+    .empty {
+      margin: 0;
+      padding: 14px 16px;
+      border-radius: 12px;
+      border: 1px dashed rgba(123, 107, 255, 0.35);
+      color: #7b8cae;
+      font-size: 13px;
+    }
+    footer { margin-top: 36px; text-align: center; font-size: 12px; line-height: 1.8; color: #8fa2c0; }
+    footer a { color: #35c8ff; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 680px) {
+      .columns { grid-template-columns: minmax(0, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>苍穹战机</h1>
+      <p>点击即可直接开玩，下方只保留最近 3 个 MINOR 版本（每个 MINOR 取最新一次发布）。<br>拖动屏幕移动战机，自动开火；点击右下角炸弹清空敌弹。桌面端可用方向键 / WASD 移动、空格放炸弹。</p>
+    </header>
+    <a class="hero" href="./v0.8.0/">
+      <span class="hero-label">最新正式版本</span>
+      <span class="hero-ver">v0.8.0</span>
+      <span class="hero-go">▶ 立即开始游戏</span>
+    </a>
+    <div class="columns">
+      <section class="panel">
+        <h2>正式版本</h2>
+        <div class="list">
+        <a class="card" href="./v0.8.0/"><span class="ver">v0.8.0<span class="badge">最新</span></span><span class="go">进入试玩 →</span></a>
+        <a class="card" href="./v0.7.0/"><span class="ver">v0.7.0</span><span class="go">进入试玩 →</span></a>
+        <a class="card" href="./v0.6.0/"><span class="ver">v0.6.0</span><span class="go">进入试玩 →</span></a>
+        </div>
+      </section>
+      <section class="panel panel-debug">
+        <h2>调试版本</h2>
+        <div class="list">
+        <p class="empty">暂无调试版本</p>
+        </div>
+      </section>
+    </div>
+    <footer>
+      <p>仓库：flutter-plane · 更新于 2026-11-09 06:41 UTC</p>
+      <p>Android APK 与 Windows ZIP 请到该仓库的 Releases 页面下载。</p>
+    </footer>
+  </div>
+</body>
+</html>
