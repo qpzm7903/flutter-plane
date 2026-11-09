@@ -521,3 +521,14 @@ GrazeReward grazeRewardFor(double focus) => focus < 0.5 ? kGrazeRewardMoving : k
 - 最重同屏渲染预算通过：≤49 批、6 圆、≤2 弧；320 dp 满状态 HUD 原测试通过。
 - 自审核对 focus/squeeze 读写分工、空放原子性、受伤与护盾分支、倍率消费、随机序列回归、波次解锁和版本一致性。未调用独立审查代理，未声称完成独立代码审查。
 - §11.3 全部手感、音量、真机 320 dp / 120 Hz 帧时间与 ≤10% 性能回退项目仍保留为设备验收；本次环境未做真机测量。
+
+### 独立代码审查（Claude）
+
+审查通过，无必须修复的问题。对照设计：
+1. `focus` / `squeeze` 读写分工正确；退出阈值 60；Boss 收束 0.4/0.4。
+2. 双击空间约束、`TapResult`、`armResonance` 守卫、空放保护（≥4 弹）均符合。
+3. `GrazeReward` 两档、`chargePower` 公式与掉命熄灭、护盾不熄灭符合。
+4. 擦弹带常显、瞄准线、新合成音、卫星复位飘字已接线。
+5. 保护文件零改；无新系统/新持久化键；第 1–2 波快照不变。
+
+协调方本地复验：`flutter analyze` 零问题，`flutter test` 455 通过（+1 skip）。
